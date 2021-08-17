@@ -1,0 +1,19 @@
+# Nada con copyright: ni ROMs, ni discos, BIOS o imágenes de NAOMI
+*.gen
+*.smd
+*.md.bin
+*.zip
+*.7z
+*.cdi
+*.gdi
+*.iso
+*.bin
+*.bin.gz
+*.vmu
+*.elf
+*.o
+IP.BIN
+romdisk.img
+gamelist.bin
+build/
+work/
