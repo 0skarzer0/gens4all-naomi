@@ -245,10 +245,11 @@ prof_start(PROF_VRENDER);
 		//extern unsigned short MD_Palette[256];
 		extern struct Reg_VDP_Type VDP_Reg;
 		extern int H_Pix;
+		screen_start_x = H_Pix == 320 ? 0 : (320-256)/2;
 		
 		//Draw Bg color
 		//int bgcolor = MD_Palette[0];
-		draw_rect_wh(SCREEN_START_X, SCREEN_START_Y, H_Pix, 224, DEPTH_LAYER_BG, 0xff000000 | (red<<16) | (gre<<8) | blu, pc);
+		draw_rect_wh(screen_start_x, SCREEN_START_Y, H_Pix, 224, DEPTH_LAYER_BG, 0xff000000 | (red<<16) | (gre<<8) | blu, pc);
 		
 		//Is VDP enabled?
 		extern int Force_Screen_On_Hack;
@@ -263,11 +264,11 @@ prof_start(PROF_VRENDER);
 		//Screen border
 		//#define SCREEN_BORDER_COLOR	0xc0300000
 		#define SCREEN_BORDER_COLOR	0xff000000
-		#define SCREEN_BORDER_WIDTH	16
-		draw_rect_wh(SCREEN_START_X - SCREEN_BORDER_WIDTH, SCREEN_START_Y-SCREEN_BORDER_WIDTH, SCREEN_BORDER_WIDTH, 224+16, 15, SCREEN_BORDER_COLOR, pc);	//Left edge
-		draw_rect_wh(H_Pix + SCREEN_START_X, SCREEN_START_Y, SCREEN_BORDER_WIDTH, 224, 15, SCREEN_BORDER_COLOR, pc);	//Right edge
-		draw_rect_wh(SCREEN_START_X, SCREEN_START_Y-SCREEN_BORDER_WIDTH, H_Pix+SCREEN_BORDER_WIDTH, SCREEN_BORDER_WIDTH, 15, SCREEN_BORDER_COLOR, pc);	//Top edge
-		draw_rect_wh(SCREEN_START_X, SCREEN_START_Y+224, H_Pix+SCREEN_BORDER_WIDTH, SCREEN_BORDER_WIDTH, 15, SCREEN_BORDER_COLOR, pc);	//Bottom edge
+		#define SCREEN_BORDER_WIDTH	64
+		draw_rect_wh(screen_start_x - SCREEN_BORDER_WIDTH, SCREEN_START_Y-SCREEN_BORDER_WIDTH, SCREEN_BORDER_WIDTH, 224+SCREEN_BORDER_WIDTH, 15, SCREEN_BORDER_COLOR, pc);	//Left edge
+		draw_rect_wh(H_Pix + screen_start_x, SCREEN_START_Y, SCREEN_BORDER_WIDTH, 224, 15, SCREEN_BORDER_COLOR, pc);	//Right edge
+		draw_rect_wh(screen_start_x, SCREEN_START_Y-SCREEN_BORDER_WIDTH, H_Pix+SCREEN_BORDER_WIDTH, SCREEN_BORDER_WIDTH, 15, SCREEN_BORDER_COLOR, pc);	//Top edge
+		draw_rect_wh(screen_start_x - SCREEN_BORDER_WIDTH, SCREEN_START_Y+224, H_Pix+SCREEN_BORDER_WIDTH, SCREEN_BORDER_WIDTH, 15, SCREEN_BORDER_COLOR, pc);	//Bottom edge
 		
 prof_end(PROF_VRENDER);
 		
@@ -284,18 +285,28 @@ prof_end(PROF_VRENDER);
 		#define PROF_TICK_PIXELS	(100.0f)
 	#endif
 	#endif
-	
+#ifdef SKIPLOADER
+	#define WHITE 0xffffffff
+	#define GREEN 0xff00ff00
+	#define DARK_GREEN 0xff008000
+	#define RED 0xffa00000
+#else
+	#define WHITE 0xff606060
+	#define GREEN 0xff006000
+	#define DARK_GREEN 0xff002000
+	#define RED 0xff400000
+#endif
 		
 		//float frametime_ms = last_frame_duration_us / 1000.0f;
 		#define frame_length	(16.666f)
 		#define us2ms(a) ((a) / 1000.0f)
 		#define bar(time) ((time) / frame_length * PROF_TICK_PIXELS)
 		#define bar_us(time) bar(us2ms(time))
-		draw_rect_wh(0,PROF_TICK_VPOS+2, bar_us(f2f_last_frame_duration_us), 8, 19.5, 0xff00ff00, pc);	//f2f time
+		draw_rect_wh(0,PROF_TICK_VPOS+2, bar_us(f2f_last_frame_duration_us), 8, 19.5, GREEN, pc);	//f2f time
 		//~ draw_rect_wh(0,PROF_TICK_VPOS+2+8, bar_us(f2f_last_frame_duration_p2p_us), 8, 19.5, 0xff008000, pc);	//f2f time
 		//~ draw_rect_wh(0,PROF_TICK_VPOS+2+8, bar(stats.frame_last_time), 8, 19.5, 0xff008000, pc);	//f2f time
 		draw_rect_wh(0,PROF_TICK_VPOS+2+8, bar(vbls * frame_length), 8, 19.5, 0xff008000, pc);	//f2f time
-		draw_rect_wh(0,PROF_TICK_VPOS+2+8, bar((float)stats.rnd_last_time), 8, 19.7, 0xffa00000, pc);	//f2f time
+		draw_rect_wh(0,PROF_TICK_VPOS+2+8, bar((float)stats.rnd_last_time), 8, 19.7, RED, pc);	//f2f time
 		draw_rect_wh(0,PROF_TICK_VPOS+2, bar_us(prof_last_frame_time[PROF_M68K]), 3, 19.7, 0xffff0000, pc);	//68k time
 		draw_rect_wh(0,PROF_TICK_VPOS+5, bar_us(prof_last_frame_time[PROF_YMH]), 3, 19.7, 0xff4040ff, pc);	//fm synth
 		draw_rect_wh(0,PROF_TICK_VPOS+8, bar_us(prof_last_frame_time[PROF_VRENDER]), 3, 19.7, 0xffa040a0, pc);	//render
@@ -304,11 +315,11 @@ prof_end(PROF_VRENDER);
 		int i;
 		for(i = 0; i < 17; i++) {
 			float h = (i % 5 != 0) ? 4 : 8;
-			draw_rect_wh(i * (PROF_TICK_PIXELS/frame_length),PROF_TICK_VPOS, 1, h, 20, 0xffffffff, pc);	//millisec
+			draw_rect_wh(i * (PROF_TICK_PIXELS/frame_length),PROF_TICK_VPOS, 1, h, 20, WHITE, pc);	//millisec
 		}
-		draw_rect_wh(PROF_TICK_PIXELS,PROF_TICK_VPOS, 1, 10, 20, 0xffffffff, pc);	//1 frame
-		draw_rect_wh(PROF_TICK_PIXELS*2,PROF_TICK_VPOS, 1, 10, 20, 0xffffffff, pc);	//2 frame
-		draw_rect_wh(PROF_TICK_PIXELS*3,PROF_TICK_VPOS, 1, 10, 20, 0xffffffff, pc);	//3 frame
+		draw_rect_wh(PROF_TICK_PIXELS,PROF_TICK_VPOS, 1, 10, 20, WHITE, pc);	//1 frame
+		draw_rect_wh(PROF_TICK_PIXELS*2,PROF_TICK_VPOS, 1, 10, 20, WHITE, pc);	//2 frame
+		draw_rect_wh(PROF_TICK_PIXELS*3,PROF_TICK_VPOS, 1, 10, 20, WHITE, pc);	//3 frame
 		
 		
 		pvr_list_finish();

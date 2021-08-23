@@ -63,10 +63,13 @@ extern void DrawTile32PVR_Asm(int tile, void *sq, int color, float topx, float b
 #endif
 
 #if 0
-#define SCREEN_START_X	(128.0f)
+#define screen_start_x	(128.0f)
 #define SCREEN_START_Y	(128.0f)
+#elif 0
+#define screen_start_x	(0.0f)
+#define SCREEN_START_Y	(0.0f)
 #else
-#define SCREEN_START_X	(0.0f)
+extern float screen_start_x;
 #define SCREEN_START_Y	(0.0f)
 #endif
 

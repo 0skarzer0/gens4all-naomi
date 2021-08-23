@@ -401,7 +401,14 @@ if (inkey == '6') {
 
   PSG_Special_Update ();
   YM2612_Special_Update ();
-
+if (!Use_SDL_Audio) {
+	//~ printf("C"); fflush(stdout);
+	//~ snd_stream_start(game_stream, Sound_Rate, Sound_Stereo);
+	int ret = gpdc_snd_stream_poll();
+	if (ret) {
+		printf("SSP: %i\n", ret);fflush(stdout);
+	}
+}
   if (WAV_Dumping)
     Update_WAV_Dump ();
   if (GYM_Dumping)

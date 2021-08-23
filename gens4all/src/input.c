@@ -226,14 +226,34 @@ void Update_Controllers(void)
 	CheckMapleButton(cond->buttons & CONT_DPAD_DOWN, Controller_1_Down);
 	CheckMapleButton(cond->buttons & CONT_DPAD_LEFT, Controller_1_Left);
 	CheckMapleButton(cond->buttons & CONT_DPAD_RIGHT, Controller_1_Right);
-	
+#ifdef SKIPLOADER
 	if (cond->rtrig > 1 || cond->ltrig > 1) {
-	//if (cond->buttons & CONT_START) {
+#else
+	if ((cond->buttons & (CONT_A | CONT_B | CONT_X | CONT_Y | CONT_START)) == (CONT_A | CONT_B | CONT_X | CONT_Y | CONT_START)) {
+#endif
 		dbgf("Exit\n");
 		Gens_Running = 0;
+		extern int Reset_Input_Lockout;
+		Reset_Input_Lockout = 1;
 	}
 
 	inkey = kbd_get_key();
+	extern int soundrecenabled;
+	extern int soundrecpos;
+	if (inkey == '9') {
+		dbgf("\nBegin rec\n");
+		soundrecenabled = 1;
+		soundrecpos = 0;
+	}
+	if (inkey == '8') {
+		#define soundrecbytes	(512*1024)
+		extern char soundrec[soundrecbytes];
+		int f = open("/pc/home/alex/Emu/Genesis/recdump2.raw", O_WRONLY | O_TRUNC);
+		write(f, soundrec, soundrecpos);
+		close(f);
+		dbgf("Wrote %i\n", soundrecpos);
+		
+	}
 	if (inkey == '5') {
 		extern unsigned char Ram_Z80[8*1024];
 		Ram_Z80[0x1fff] = 0;

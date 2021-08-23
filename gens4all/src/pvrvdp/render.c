@@ -16,6 +16,8 @@
 
 extern struct Reg_VDP_Type VDP_Reg;
 
+float screen_start_x = 0;
+
 void DrawTile32PVR_C(int tile, void *sq, int color, float topx, float bottomx, float y, float lowz, float hiz, float w, float h) {
 	PvrUV32 *uv = TileUV32Table + (tile & 0xffff);
 	
@@ -266,7 +268,7 @@ void DrawMapPVR(int layer, float lowpriodepth, float hipriodepth) {
 	yf = SCREEN_START_Y - (yscroll % 8);
 	
 	for(y = 0; y <= screenheightintiles; y++) {
-		xf = SCREEN_START_X;
+		xf = screen_start_x;
 		//int l = -(GetHScroll(y * 8, layer)) - 8;
 		int l = -(GetHScroll(y * 8, layer));
 		//float leftxmap = -(l & 0x7);
@@ -326,7 +328,7 @@ void DrawMapWindow(float lowpriodepth, float hipriodepth) {
 	yf += wintop*TS;
 //	printf("(%i, %i) - (%i, %i)\n", winleft, wintop, winright, winbottom);
 	for(y = wintop; y < winbottom; y++) {
-		float xf = SCREEN_START_X;
+		float xf = screen_start_x;
 		short *tmrow = winaddr + (y << tilemapwidthshift);
 		float leftxmap = 0;
 		float leftxmaplow = leftxmap;
@@ -342,7 +344,7 @@ void DrawMapWindow(float lowpriodepth, float hipriodepth) {
 #if 0
 	for(y = wintop; y < winbottom; y++) {
 		yf = y * TS;
-		float xf = SCREEN_START_X;
+		float xf = screen_start_x;
 		
 		int l = -(GetHScroll(y * 8, 0));
 		float leftxmap = -(l % 8);
@@ -389,7 +391,7 @@ void DrawMapPVRWindow(int layer, float lowpriodepth, float hipriodepth) {
 	yf = SCREEN_START_Y - (yscroll % 8);
 	
 	for(y = 0; y <= screenheightintiles; y++) {
-		xf = SCREEN_START_X;
+		xf = screen_start_x;
 		//int l = -(GetHScroll(y * 8, layer)) - 8;
 		int l = -(GetHScroll(y * 8, layer));
 		//float leftxmap = -(l & 0x7);
@@ -447,7 +449,7 @@ typedef struct {
 void DrawSprite(VDPSprite *spr, void *sq, float depth) {
 	const int h = spr->flags & 0x3;
 	const int w = (spr->flags >> 2) & 0x3;
-	int x = (spr->x & 0x1ff) - 128 + SCREEN_START_X;
+	int x = (spr->x & 0x1ff) - 128 + screen_start_x;
 	int y = (spr->y & 0x1ff) - 128 + SCREEN_START_Y;
 	int tile = spr->tile;
 	int i, j;

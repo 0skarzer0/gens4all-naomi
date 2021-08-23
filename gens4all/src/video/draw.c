@@ -128,9 +128,9 @@ int Init_Video_SubSystem(int w, int h, int flags)
 
 	
 	if (1) {
-		vid_init(DM_320x240_VGA, PM_RGB565);
+		vid_init(DM_320x240, PM_RGB565);
 	} else {
-		vid_init(DM_320x240_VGA, PM_RGB888);
+		vid_init(DM_320x240, PM_RGB888);
 	}
 //	vid_border_color(255, 0, 0);
 //	sleep(5);
@@ -491,8 +491,11 @@ int Update_Emulation (void)
   if (Frame_Skip != -1)
     {
 #ifndef NO_SOUND
-      if (Sound_Enable)
+      if (Sound_Enable) {
 	      Write_Sound_Buffer (NULL);
+	      
+	     
+	}
 #endif
 
       Update_Controllers ();
@@ -513,6 +516,14 @@ int Update_Emulation (void)
       if (Sound_Enable)
 	{
 		Write_Sound_Buffer (NULL);
+		 if (0 && !Use_SDL_Audio) {
+			//~ printf("B"); fflush(stdout);
+			//~ snd_stream_start(game_stream, Sound_Rate, Sound_Stereo);
+			//~ int ret = snd_stream_poll(game_stream);
+			//~ if (ret) {
+				//~ printf("SSP: %i\n", ret);fflush(stdout);
+			//~ }
+		}
 		Update_Controllers ();
 		Update_Frame ();
 		Flip ();

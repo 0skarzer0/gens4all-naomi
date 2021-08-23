@@ -11,6 +11,10 @@
 #include "util/SFont.h"
 #include "menu/menu.h"
 
+#include <dc/sound/sound.h>
+#include <dc/sound/aica_comm.h>
+
+
 #ifdef DREAMCAST
 #include <kos.h>
 extern uint8 romdisk[];
@@ -777,7 +781,7 @@ int Init (void)
 	Sound_Enable = 1;
 	Sound_Segs = 8;
 	Sound_Stereo = 1;
-	Sound_Initialised = 1;
+	//~ Sound_Initialised = 1;	//Sound not inited yet...
 	Sound_Is_Playing = 0;
 	WAV_Dumping = 0;
 	GYM_Dumping = 0;
@@ -985,6 +989,7 @@ int main (int argc, char *argv[])
 	prof_add("R7");             // PROF_R7
 #endif
 
+	
 	if (!Init ())
 		return 0;
 
@@ -1034,12 +1039,31 @@ int main (int argc, char *argv[])
 	
 	
 	watchdog_init();
+#ifndef SKIPLOADER
+	extern void run_loader();
+	run_loader();
+	return 0;
+#endif
 	
-	#define ROMDIR "/pc/home/USERGOESHERE/Emu/Genesis/"
+	#define ROMDIR "/pc/home/alex/Emu/Genesis/"
+	int runresult = run(ROMDIR"pstar2.gen");
 	
-	
-	
-	int runresult = run(ROMDIR"shinobi2.gen");
+	if (Use_SDL_Audio == 2) {
+		AICA_CMDSTR_CHANNEL(tmp, cmd, chan);
+
+		/* Stop stream */
+		/* Channel 0 */
+		cmd->cmd = AICA_CMD_CHAN;
+		cmd->timestamp = 0;
+		cmd->size = AICA_CMDSTR_CHANNEL_SIZE;
+		cmd->cmd_id = 0;
+		chan->cmd = AICA_CH_CMD_STOP;
+		snd_sh4_to_aica(tmp, cmd->size);
+
+		/* Channel 1 */
+		cmd->cmd_id = 1;
+		snd_sh4_to_aica(tmp, cmd->size);
+	}
 	
 	printf("runresult: %i\n", runresult);
 	
@@ -1053,9 +1077,13 @@ int run(const char *rom_filename)
 		return -1;
 	
 	
-	printf("Name : \"%s\"\n", Game->Rom_Name);
-	printf("NameW: \"%s\"\n", Game->Rom_Name_W);
+	printf("Name : \"%.48s\"\n", Game->Rom_Name);
+	printf("NameW: \"%.48s\"\n", Game->Rom_Name_W);
 	fflush(stdout);
+	
+	Sonic_SMPS_Z80_Hack = 0;
+	Ristar_Hack = 0;
+	Force_Screen_On_Hack = 0;
 	
 	if (strcmp(Game->Rom_Name, "SONIC THE HEDGEHOG 2 ") == 0) {
 		Sonic_SMPS_Z80_Hack = 1;
@@ -1097,7 +1125,7 @@ int run(const char *rom_filename)
 		{
 		  if ((Active) && (!Paused))	// EMULATION
 		    {
-			    spu_master_mixer(9, 1);
+			    //~ spu_master_mixer(9, 1);
 				if (fast_forward == 1)
 				{
 					Update_Emulation_One ();

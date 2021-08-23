@@ -20,6 +20,9 @@ extern char Dump_Dir[1024];
 extern char Dump_GYM_Dir[1024];
 
 #ifndef NO_SOUND
+extern int Use_SDL_Audio;
+#define DC_STRM_BUF_SIZE	(2048)
+
 int Init_Sound(void);
 void End_Sound(void);
 int Get_Current_Seg(void);

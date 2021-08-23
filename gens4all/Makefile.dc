@@ -19,6 +19,8 @@ KOS_CFLAGS+= -DROM_PREFIX="/pc/gensrom" -DDATA_PREFIX="/rd/"
 
 KOS_CFLAGS+= -DRAZE -DFAME
 
+#~ KOS_CFLAGS+= -DSKIPLOADER
+
 KOS_CPPFLAGS = $(KOS_CFLAGS)
 
 all: $(TARGET).bin
@@ -49,6 +51,9 @@ src/cpu/z80/raze/sh4/raze1.o: src/cpu/z80/raze/sh4/raze1.s
 
 OBJS =	\
 	src/main.o \
+	src/loader.o \
+	src/bmf.o \
+	src/sounddc/snd_stream.o \
 	src/gens.o \
 	src/genesis.o \
 	src/port.o \
@@ -94,7 +99,7 @@ clean:
 
 $(TARGET).elf: $(OBJS)
 	$(KOS_CC) $(KOS_CFLAGS) $(KOS_LDFLAGS) -o $(TARGET).elf $(KOS_START) \
-	$(OBJS) $(OBJEXTRA) -lSDL -lz -lm $(KOS_LIBS)
+	$(OBJS) $(OBJEXTRA) -lSDLDH -lz -lm $(KOS_LIBS)
 
 
 $(TARGET).bin: $(TARGET).elf

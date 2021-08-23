@@ -1,4 +1,6 @@
-
+#include <kos.h>
+#include <dc/sound/sound.h>
+#include <dc/sound/aica_comm.h>
 #include "gens4all.h"
 
 #include <time.h>
@@ -6,6 +8,7 @@
 #include "ym2612.h"
 #include "vdp_io.h"
 #include "pcm.h"
+#include "sounddc/snd_stream.h"
 
 #define MAX_AUDIOVAL ((1<<(16-1))-1)
 #define MIN_AUDIOVAL -(1<<(16-1))
@@ -31,10 +34,16 @@ char Dump_GYM_Dir[1024] = "";
 int WP, RP;
 #endif
 
+//For SDL, this is bytes, for non-SDL, this is samples
 static int audio_len = 0;
 
 unsigned char *audiobuf = 0;
 extern int over_time;
+
+#define soundrecbytes	(512*1024)
+char soundrec[soundrecbytes];
+int soundrecpos;
+int soundrecenabled = 0;
 
 #ifndef NO_SOUND
 void
@@ -46,48 +55,272 @@ proc (void *user, Uint8 * buffer, int len)
 		return;
 	}
 	if (audio_len < len) {
-//		printf("S"); fflush(stdout);
+		//printf("U"); fflush(stdout);
+		//Audio buffer underflow. Copy what we have, pad out the rest of the buffer with zeroes
+		//~ SDL_LockAudio ();
 		memcpy (buffer, user, audio_len);
+		//~ memset(buffer + audio_len, 0, len - audio_len);
+		//~ SDL_UnlockAudio ();
+		 
+		if (soundrecenabled) {
+			//If recording, make a copy of what was sent to SDL
+			memcpy (soundrec + soundrecpos, user, audio_len);
+			memset(soundrec + soundrecpos + audio_len, 0, len - audio_len);
+			soundrecpos += len;
+		}
+		
 		audio_len = 0;
 	} else {
-//		printf("s"); fflush(stdout);
-		SDL_LockAudio ();
+		//printf("f"); fflush(stdout);
+		//We have more samples in the emulated buffer than SDL needs.
+		//~ SDL_LockAudio ();
 		memcpy (buffer, user, len);
-		SDL_UnlockAudio ();
+		//~ SDL_UnlockAudio ();
 		
+		if (soundrecenabled) {
+			//If recording, make a copy of what was sent to SDL
+			memcpy (soundrec + soundrecpos, user, len);
+			soundrecpos += len;
+		}
+		
+		//Remove the part of the buffer that was sent to SDL
 		audio_len -= len;
- 		memcpy (user, (unsigned char *) user + len, audio_len);
+ 		memmove (user, (unsigned char *) user + len, audio_len);
 	}
+	if (soundrecenabled && (soundrecpos > 500*1024)) {
+		printf("Rec over\n"); fflush(stdout);
+		soundrecenabled = 0;
+	}
+}
+
+#define AICA_BUF_SIZE	(8192)
+int Use_SDL_Audio = 1;
+uint32 aica_left_ch;
+uint32 aica_right_ch;
+
+static short lmixbuff[16*1024];
+static short rmixbuff[16*1024];
+static short lmixret[16*1024];
+static short rmixret[16*1024];
+static int lastmixused = 0;	//in samples
+void * mixbuffs[2] = {lmixbuff, rmixbuff};
+void * mixbuffs2[2] = {lmixret, rmixret};
+//~ void * mixbuffs[2] = {Seg_L, Seg_R};
+static void Write_Sound_Stereo_Split (short *LDest, short *RDest, const int length);
+
+static void **audio_callback(int samples_requested, int *samples_returned)
+{
+	if (samples_requested > audio_len) {
+		*samples_returned = samples_requested;
+		return mixbuffs;
+	}
+	//~ int origaudio_len = audio_len;
+	//~ int origlastmixused = lastmixused;
+	//Use up old samples
+	int keep_amt = (audio_len - lastmixused)*2;
+	if (keep_amt < 0) keep_amt = 0;
+ 	memmove (lmixbuff, lmixbuff + lastmixused, keep_amt);
+ 	memmove (rmixbuff, rmixbuff + lastmixused, keep_amt);
+	audio_len -= lastmixused;
+	if (audio_len < 0)
+		audio_len = 0;
+ 	
+ 	//How much to remove from next callback
+	//~ lastmixused = audio_len > samples_requested ? samples_requested : audio_len; //samples_requested;
+	lastmixused = samples_requested;
+	//~ printf("(%i)", samples_requested);
+	//~ printf("(%i,%i,%i|%i,%i)", samples_requested,origaudio_len,origlastmixused, keep_amt/2,lastmixused); fflush(stdout);
+	
+	
+	
+	//Return samples
+	*samples_returned = samples_requested;
+	//~ *samples_returned = lastmixused;
+	
+	if (soundrecenabled) {
+		//If recording, make a copy of what was sent to SDL
+		memcpy (soundrec + soundrecpos, lmixbuff, *samples_returned * 2);
+		soundrecpos += samples_requested*2;
+		if (soundrecenabled && (soundrecpos > 500*1024)) {
+			printf("Rec over\n"); fflush(stdout);
+			soundrecenabled = 0;
+		}
+	}
+	
+	return mixbuffs;
+}
+
+static void **audio_callback2(int samples_requested, int *samples_returned)
+{
+	//~ printf("(%i)", samples_requested); fflush(stdout);
+	if (samples_requested > audio_len) {
+		memset(lmixret, 0, samples_requested*2);
+		memset(rmixret, 0, samples_requested*2);
+		/*
+		memcpy(lmixret, lmixbuff, audio_len*2);
+		memcpy(rmixret, rmixbuff, audio_len*2);
+		int i, lastl = lmixbuff[audio_len-1], lastr = lmixbuff[audio_len-1];
+		for(i = audio_len; i < samples_requested; i++) {
+			lmixret[i] = lastl;
+			rmixret[i] = lastr;
+		}*/
+		
+		*samples_returned = samples_requested;
+	} else {
+		memcpy(lmixret, lmixbuff, samples_requested*2);
+		memcpy(rmixret, rmixbuff, samples_requested*2);
+		
+		audio_len -= samples_requested;
+		memmove(lmixbuff, lmixbuff + samples_requested, audio_len*2);
+		memmove(rmixbuff, rmixbuff + samples_requested, audio_len*2);
+		
+		*samples_returned = samples_requested;
+	}
+	
+	if (soundrecenabled) {
+		memcpy (soundrec + soundrecpos, lmixret, *samples_returned * 2);
+		soundrecpos += samples_requested*2;
+		if (soundrecenabled && (soundrecpos > 500*1024)) {
+			printf("Rec over\n"); fflush(stdout);
+			soundrecenabled = 0;
+		}
+	}
+	
+	return mixbuffs2;
+}
+
+int Init_SoundDC(void) {
+	int audio_factor, i;
+	
+	if (Sound_Initialised) {
+		gpdc_snd_stream_start(Sound_Rate, Sound_Stereo);
+		return 1;
+	}
+	
+	switch (Sound_Rate)
+	{
+	case 8000:
+		if (CPU_Mode)
+		Seg_Lenght = 160;
+		else
+		Seg_Lenght = 134;
+		break;
+
+	case 11025:
+		if (CPU_Mode)
+		Seg_Lenght = 221;	//was 220
+		else
+		Seg_Lenght = 185;	//was 184
+		break;
+
+	case 16000:
+		if (CPU_Mode)
+		Seg_Lenght = 320;
+		else
+		Seg_Lenght = 267;
+		break;
+
+	case 22050:
+		if (CPU_Mode)
+		Seg_Lenght = 441;
+		else
+		Seg_Lenght = 368;
+		break;
+
+	case 32000:
+		if (CPU_Mode)
+		Seg_Lenght = 640;
+		else
+		Seg_Lenght = 534;
+		break;
+
+	case 44100:
+		if (CPU_Mode)
+		Seg_Lenght = 882;
+		else
+		Seg_Lenght = 735;
+		break;
+	}
+	
+	audio_factor = (CPU_Mode)?312:262;
+
+	for (i = 0; i < audio_factor; i++) {
+		Sound_Extrapol[i][0] = ((Seg_Lenght * i) / audio_factor);
+		Sound_Extrapol[i][1] =
+		(((Seg_Lenght * (i + 1)) / audio_factor) - Sound_Extrapol[i][0]);
+	}
+	
+	for (i = 0; i < Seg_Lenght; i++)
+		Sound_Interpol[i] = ((audio_factor * i) / Seg_Lenght);
+
+	memset (Seg_L, 0, Seg_Lenght << 2);
+	memset (Seg_R, 0, Seg_Lenght << 2);
+	
+	int channels = Sound_Stereo ? 2 : 1;
+	#define oversizeratio 1
+	printf("Audiobuf size: %i\n", (int)((Sound_Rate * channels * 2 * 4 * oversizeratio) * sizeof (short)));
+	audiobuf = malloc ((Sound_Rate * channels * 2 * 4 * oversizeratio) * sizeof (short));
+	
+	
+	if (Use_SDL_Audio == 2) {
+		aica_left_ch = snd_mem_malloc(AICA_BUF_SIZE);
+		aica_right_ch = snd_mem_malloc(AICA_BUF_SIZE);
+	} else {
+		int ret;
+		ret = gpdc_snd_stream_init(audio_callback2);
+		printf("Init ret: %i\n", ret);
+		gpdc_snd_stream_clear();
+		gpdc_snd_stream_start(Sound_Rate, Sound_Stereo);
+	}
+	//~ game_stream = snd_stream_alloc(DCStreamCB, 8*1024);
+	//~ printf("Game stream: %i\n", game_stream);
+	//~ snd_stream_queue_enable(game_stream);
+	//~ snd_stream_start(game_stream, Sound_Rate, Sound_Stereo);
+	//~ snd_stream_queue_go(game_stream);
+	
+	return (Sound_Initialised = 1);
 }
 
 int
 Init_Sound (void)
 {
+	if (!Use_SDL_Audio)
+		return Init_SoundDC();
+	
 	SDL_AudioSpec spec;
 	int i;
 	int audio_factor;
 
 	if (Sound_Initialised)
 	{
-		return 0;
+		printf("Sound already running\n"); fflush(stdout);
+		SDL_PauseAudio (0);
+		return 1;
 	}
 
   End_Sound ();
 printf("Sound Rate: %i\n", Sound_Rate);
   switch (Sound_Rate)
     {
+   case 8000:
+      if (CPU_Mode)
+	Seg_Lenght = 160;
+      else
+ 	Seg_Lenght = 134;
+      break;
+      
     case 11025:
       if (CPU_Mode)
-	Seg_Lenght = 220;
+	Seg_Lenght = 221;
       else
-	Seg_Lenght = 184;
+	Seg_Lenght = 185;
       break;
 
     case 16000:
       if (CPU_Mode)
 	Seg_Lenght = 320;
       else
- 	Seg_Lenght = 266;
+ 	Seg_Lenght = 267;
       break;
 
     case 22050:
@@ -95,6 +328,13 @@ printf("Sound Rate: %i\n", Sound_Rate);
 	Seg_Lenght = 441;
       else
  	Seg_Lenght = 368;
+      break;
+      
+    case 32000:
+      if (CPU_Mode)
+	Seg_Lenght = 640;
+      else
+ 	Seg_Lenght = 534;
       break;
 
     case 44100:
@@ -137,8 +377,10 @@ printf("Sound Rate: %i\n", Sound_Rate);
 	spec.format = AUDIO_S16SYS;
 	spec.channels = (Sound_Stereo)? 2 : 1;
 	spec.samples = 1024;
+	//~ spec.samples = 800;
 	spec.callback = proc;
-	#define oversizeratio 2
+	#define oversizeratio 1
+	printf("Audiobuf size: %i\n", (int)(spec.samples * spec.channels * 2 * 4 * oversizeratio * sizeof (short)));
 	audiobuf =
 	(unsigned char *) malloc ((spec.samples * spec.channels * 2 * 4 * oversizeratio) *
 					sizeof (short));
@@ -167,7 +409,14 @@ printf("Sound Rate: %i\n", Sound_Rate);
 void
 End_Sound ()
 {
-  SDL_PauseAudio (1);
+	if (Use_SDL_Audio) {
+		SDL_PauseAudio (1);
+	} else {
+		gpdc_snd_stream_stop();
+	}
+  return;	//Keep sound system up for switching between games
+//*
+//	Commented out so it keeps working when switching games
   if (audiobuf)
   	free (audiobuf);
   audiobuf = NULL;
@@ -179,6 +428,7 @@ End_Sound ()
 #ifndef _PSP
   SDL_QuitSubSystem (SDL_INIT_AUDIO);
 #endif
+//*/
 }
 
 int
@@ -221,6 +471,34 @@ static void Write_Sound_Stereo (short *Dest, const int length)
 	*dest++ = MAX_AUDIOVAL;
       else
 	*dest++ = (short) out_R;
+    }
+}
+
+static void Write_Sound_Stereo_Split (short *LDest, short *RDest, const int length)
+{
+  int i, out_L, out_R;
+
+  for (i = 0; i < length; i++)
+    {
+      out_L = Seg_L[i];
+      Seg_L[i] = 0;
+
+      if (out_L < MIN_AUDIOVAL)
+	*LDest++ = MIN_AUDIOVAL;
+      else if (out_L > MAX_AUDIOVAL)
+	*LDest++ = MAX_AUDIOVAL;
+      else
+	*LDest++ = (short) out_L;
+
+      out_R = Seg_R[i];
+      Seg_R[i] = 0;
+
+      if (out_R < MIN_AUDIOVAL)
+	*RDest++ = MIN_AUDIOVAL;
+      else if (out_R > MAX_AUDIOVAL)
+	*RDest++ = MAX_AUDIOVAL;
+      else
+	*RDest++ = (short) out_R;
     }
 }
 
@@ -294,9 +572,63 @@ static void Dump_Sound_Mono (short *Dest, const int length)
 
 int Write_Sound_Buffer (void *Dump_Buf)
 {
-	//if (audio_len > (1880*2)) {
-	if (audio_len > (2500*2)) {
-		return;
+	//~ if (audio_len > (1880*2)) {
+	//~ if (audio_len > (2500*2)) {
+	if (!Use_SDL_Audio) {
+		//~ printf("B"); fflush(stdout);
+		if (1) {
+			if (audio_len < 4000) {
+				Write_Sound_Stereo_Split(lmixbuff+audio_len, rmixbuff+audio_len, Seg_Lenght);
+				audio_len += Seg_Lenght;
+			} else {
+				printf("o");
+			}
+			return 0;
+		}
+		if (0 && audio_len > (2000*2)) {
+			AICA_CMDSTR_CHANNEL(tmp, cmd, chan);
+			/* Channel 0 */
+			cmd->cmd = AICA_CMD_CHAN;
+			cmd->timestamp = 0;
+			cmd->size = AICA_CMDSTR_CHANNEL_SIZE;
+			cmd->cmd_id = 0;
+			chan->cmd = AICA_CH_CMD_START | AICA_CH_START_DELAY;
+			chan->base = aica_left_ch;
+			chan->type = AICA_SM_16BIT;
+			chan->length = AICA_BUF_SIZE/2;
+			chan->loop = 1;
+			chan->loopstart = 0;
+			chan->loopend = AICA_BUF_SIZE/2;
+			chan->freq = Sound_Rate;
+			chan->vol = 255;
+			chan->pan = 0;
+			snd_sh4_to_aica(tmp, cmd->size);
+
+			/* Channel 1 */
+			cmd->cmd_id = 1;
+			chan->base = aica_right_ch;
+			chan->pan = 255;
+			snd_sh4_to_aica(tmp, cmd->size);
+
+			/* Start both channels simultaneously */
+			//~ cmd->cmd_id = (1 << streams[hnd].ch[0]) | (1 << streams[hnd].ch[1]);
+			cmd->cmd_id = 0x3;
+			chan->cmd = AICA_CH_CMD_START | AICA_CH_START_SYNC;
+			snd_sh4_to_aica(tmp, cmd->size);
+			
+			spu_memload(aica_left_ch, Seg_L, 2000*2);
+			spu_memload(aica_right_ch, Seg_R, 2000*2); //Seg_Lenght
+			
+			audio_len -= 4000;
+			
+			snd_sh4_to_aica_start();
+		}
+		return 1;
+	} else {
+		if (audio_len > (3000*2)) {
+			//~ printf("Too full\n"); fflush(stdout);
+			return 0;	//Does anything use this return value?
+		}
 	}
 	
 	if (Sound_Stereo)
