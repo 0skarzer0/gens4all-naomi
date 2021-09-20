@@ -128,7 +128,9 @@ int Init_Video_SubSystem(int w, int h, int flags)
 
 	
 	if (1) {
-		vid_init(DM_320x240, PM_RGB565);
+		#ifndef VDP_HIRES
+			vid_init(DM_320x240, PM_RGB565);
+		#endif
 	} else {
 		vid_init(DM_320x240, PM_RGB888);
 	}
@@ -136,8 +138,8 @@ int Init_Video_SubSystem(int w, int h, int flags)
 //	sleep(5);
 //*
 	pvr_init_params_t pvr_params = {
-		{ PVR_BINSIZE_8, PVR_BINSIZE_0, PVR_BINSIZE_32, PVR_BINSIZE_0, PVR_BINSIZE_32 },
-		(int)1*1024*1024,
+		{ PVR_BINSIZE_8, PVR_BINSIZE_16, PVR_BINSIZE_32, PVR_BINSIZE_16, PVR_BINSIZE_32 },
+		(int)1.5*1024*1024,
 		0,
 		0,
 		0, //sort
@@ -146,6 +148,7 @@ int Init_Video_SubSystem(int w, int h, int flags)
 	pvr_set_bg_color(0,0,0.21);
 
 	PVR_GET(PVR_FB_CFG_2) &= ~0x8;	//disable dither
+	pvr_set_shadow_scale(1, 0.5);
 	
 	InitPVRTexture();
 	InitTileUVTable();
@@ -526,7 +529,8 @@ int Update_Emulation (void)
 		}
 		Update_Controllers ();
 		Update_Frame ();
-		Flip ();
+		if (Render_Point == 1)
+			Flip ();	//DC flip with sound
 	}
       else
 	{

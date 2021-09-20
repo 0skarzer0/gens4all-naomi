@@ -98,6 +98,8 @@ typedef enum {
 #include "stef/z80.h"
 #endif
 
+#include "bmf.h"
+
 extern int Debug;
 extern int Frame_Skip;
 extern int Frame_Number;
@@ -284,6 +286,9 @@ int Change_SegaCD_SRAM_Size(int num);
 int Change_YM2612(void);
 int Change_PSG_Improv(void);
 int Change_YM2612_Improv(void);
+
+extern int Render_Point;
+extern struct BMFFont * emufont;
 
 extern _filters filters;
 

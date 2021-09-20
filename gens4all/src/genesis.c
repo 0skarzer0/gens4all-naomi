@@ -245,94 +245,118 @@ int Do_Genesis_Frame(void)
 {
 	frameskipping = 0;
 	prof_inc_frame_count();
-  int *buf[2];
-  int HInt_Counter;
+	int *buf[2];
+	int HInt_Counter;
 
-  if ((CPU_Mode) && (VDP_Reg.Set2 & 0x8))
-    VDP_Num_Vis_Lines = 240;
-  else
-    VDP_Num_Vis_Lines = 224;
+	if ((CPU_Mode) && (VDP_Reg.Set2 & 0x8))
+		VDP_Num_Vis_Lines = 240;
+	else
+		VDP_Num_Vis_Lines = 224;
 
-  YM_Buf[0] = PSG_Buf[0] = Seg_L;
-  YM_Buf[1] = PSG_Buf[1] = Seg_R;
-  YM_Len = PSG_Len = 0;
+	YM_Buf[0] = PSG_Buf[0] = Seg_L;
+	YM_Buf[1] = PSG_Buf[1] = Seg_R;
+	YM_Len = PSG_Len = 0;
 
-  Cycles_M68K = Cycles_Z80 = 0;
-  Last_BUS_REQ_Cnt = -1000;
+	Cycles_M68K = Cycles_Z80 = 0;
+	Last_BUS_REQ_Cnt = -1000;
 //  main68k_tripOdometer ();
 	M68K_ResetCyclesCounter();
 
 	Z80_Clear_Clock();
 
-  Patch_Codes ();
+	Patch_Codes ();
 
-  VRam_Flag = 1;
+	VRam_Flag = 1;
 
-  VDP_Status &= 0xFFF7;		// Clear V Blank
-  if (VDP_Reg.Set4 & 0x2)
-    VDP_Status ^= 0x0010;
+	VDP_Status &= 0xFFF7;		// Clear V Blank
+	if (VDP_Reg.Set4 & 0x2)
+		VDP_Status ^= 0x0010;
 
-  HInt_Counter = VDP_Reg.H_Int;	// Hint_Counter = step d'interruption H
+	HInt_Counter = VDP_Reg.H_Int;	// Hint_Counter = step d'interruption H
 
-  for (VDP_Current_Line = 0; VDP_Current_Line < VDP_Num_Vis_Lines;
-       VDP_Current_Line++)
-    {
-      buf[0] = Seg_L + Sound_Extrapol[VDP_Current_Line][0];
-      buf[1] = Seg_R + Sound_Extrapol[VDP_Current_Line][0];
-      YM2612_DacAndTimers_Update (buf, Sound_Extrapol[VDP_Current_Line][1]);
-      YM_Len += Sound_Extrapol[VDP_Current_Line][1];
-      PSG_Len += Sound_Extrapol[VDP_Current_Line][1];
+	memcpy(Raster0_CRam, CRam, sizeof(Raster0_CRam));
+	memset(Raster_Lines, 0, sizeof(Raster_Lines));
+	Raster_ColorSplit = 0;
+	Raster_ColorSplitLine = 1<<17;
 
-      Fix_Controllers ();
-      Cycles_M68K += CPL_M68K;
-      Cycles_Z80 += CPL_Z80;
-      if (DMAT_Lenght)
-//		main68k_addCycles (Update_DMA ());
-		M68K_AddCycles(Update_DMA ());
+	for (VDP_Current_Line = 0; VDP_Current_Line < VDP_Num_Vis_Lines;
+			 VDP_Current_Line++)
+		{
+			//~ CRam_Line_Dirty = 0;
+			//~ VSRam_Line_Dirty = 0;
+			
+			buf[0] = Seg_L + Sound_Extrapol[VDP_Current_Line][0];
+			buf[1] = Seg_R + Sound_Extrapol[VDP_Current_Line][0];
+			YM2612_DacAndTimers_Update (buf, Sound_Extrapol[VDP_Current_Line][1]);
+			YM_Len += Sound_Extrapol[VDP_Current_Line][1];
+			PSG_Len += Sound_Extrapol[VDP_Current_Line][1];
 
-      VDP_Status |= 0x0004;	// HBlank = 1
+			Fix_Controllers ();
+			Cycles_M68K += CPL_M68K;
+			Cycles_Z80 += CPL_Z80;
+			if (DMAT_Lenght)
+//				main68k_addCycles (Update_DMA ());
+				M68K_AddCycles(Update_DMA ());
+
+			VDP_Status |= 0x0004;	// HBlank = 1
 //      main68k_exec (Cycles_M68K - 404);
-      M68K_Exec(Cycles_M68K - 404);
+			M68K_Exec(Cycles_M68K - 404);
 
-      VDP_Status &= 0xFFFB;	// HBlank = 0
+			VDP_Status &= 0xFFFB;	// HBlank = 0
 
-      if (--HInt_Counter < 0)
-	{
-	  HInt_Counter = VDP_Reg.H_Int;
-	  VDP_Int |= 0x4;
-	  Update_IRQ_Line ();
-	}
+			if (--HInt_Counter < 0)
+			{
+				HInt_Counter = VDP_Reg.H_Int;
+				VDP_Int |= 0x4;
+				Update_IRQ_Line ();
+			}
+
+			if (!(VDP_Reg.Set2 & 0x40))	//Is screen off?
+				Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCREEN_OFF;
+			
+			if ((Raster_Lines[VDP_Current_Line] & RASTER_LINE_COLOR_CHANGE) && !Raster_ColorSplit) {
+				Raster_ColorSplit = 1;
+				Raster_ColorSplitLine = VDP_Current_Line;
+				//~ memcpy(Raster1_CRam, CRam, sizeof(Raster1_CRam));
+			}
+			
+			Raster_BgColor[VDP_Current_Line*2] = CRam[VDP_Reg.BG_Color*2];
+			Raster_BgColor[VDP_Current_Line*2+1] = CRam[VDP_Reg.BG_Color*2+1];
 
 //      prof_start(PROF_VRENDER);
 //      Render_Line ();
 //      prof_end(PROF_VRENDER);
+	
+			M68K_Exec(Cycles_M68K);
+			Z80_Process(Cycles_Z80);
+			
+			
+		}
+	if (Raster_ColorSplit)
+		memcpy(Raster1_CRam, CRam, sizeof(Raster1_CRam));
+	if (Render_Point == 0)
+		Flip();
+	buf[0] = Seg_L + Sound_Extrapol[VDP_Current_Line][0];
+	buf[1] = Seg_R + Sound_Extrapol[VDP_Current_Line][0];
+	YM2612_DacAndTimers_Update (buf, Sound_Extrapol[VDP_Current_Line][1]);
+	YM_Len += Sound_Extrapol[VDP_Current_Line][1];
+	PSG_Len += Sound_Extrapol[VDP_Current_Line][1];
 
-//      main68k_exec (Cycles_M68K);
-      M68K_Exec(Cycles_M68K);
-		Z80_Process(Cycles_Z80);
-    }
-
-  buf[0] = Seg_L + Sound_Extrapol[VDP_Current_Line][0];
-  buf[1] = Seg_R + Sound_Extrapol[VDP_Current_Line][0];
-  YM2612_DacAndTimers_Update (buf, Sound_Extrapol[VDP_Current_Line][1]);
-  YM_Len += Sound_Extrapol[VDP_Current_Line][1];
-  PSG_Len += Sound_Extrapol[VDP_Current_Line][1];
-
-  Fix_Controllers ();
-  Cycles_M68K += CPL_M68K;
-  Cycles_Z80 += CPL_Z80;
-  if (DMAT_Lenght)
+	Fix_Controllers ();
+	Cycles_M68K += CPL_M68K;
+	Cycles_Z80 += CPL_Z80;
+	if (DMAT_Lenght)
 //    main68k_addCycles (Update_DMA ());
 	M68K_AddCycles(Update_DMA ());
 
-  if (--HInt_Counter < 0)
-    {
-      VDP_Int |= 0x4;
-      Update_IRQ_Line ();
-    }
+	if (--HInt_Counter < 0)
+		{
+			VDP_Int |= 0x4;
+			Update_IRQ_Line ();
+		}
 
-  VDP_Status |= 0x000C;		// VBlank = 1 et HBlank = 1 (retour de balayage vertical en cours)
-  
+	VDP_Status |= 0x000C;		// VBlank = 1 et HBlank = 1 (retour de balayage vertical en cours)
+	
 if (inkey == '6') {
 	extern int Last_BUS_REQ_Cnt;
 	printf("Pre Hblank:\n68k PC: %08x\n", M68K_GetPC());
@@ -342,17 +366,17 @@ if (inkey == '6') {
 	printf("Z80 PC: %04x\n", z80_get_reg(Z80_REG_PC));
 	fflush(stdout);
 }
-  
+	
 //  main68k_exec (Cycles_M68K - 360);
 	M68K_Exec(Cycles_M68K - 360);
 
 	Z80_Process(Cycles_Z80 - 168);
 
-  VDP_Status &= 0xFFFB;		// HBlank = 0
-  VDP_Status |= 0x0080;		// V Int happened
+	VDP_Status &= 0xFFFB;		// HBlank = 0
+	VDP_Status |= 0x0080;		// V Int happened
 
-  VDP_Int |= 0x8;
-  Update_IRQ_Line ();
+	VDP_Int |= 0x8;
+	Update_IRQ_Line ();
 
 	Z80_IRQ();
 
@@ -370,37 +394,37 @@ if (inkey == '6') {
 	fflush(stdout);
 }
 
-  for (VDP_Current_Line++; VDP_Current_Line < VDP_Num_Lines;
-       VDP_Current_Line++)
-    {
-      buf[0] = Seg_L + Sound_Extrapol[VDP_Current_Line][0];
-      buf[1] = Seg_R + Sound_Extrapol[VDP_Current_Line][0];
-      YM2612_DacAndTimers_Update (buf, Sound_Extrapol[VDP_Current_Line][1]);
-      YM_Len += Sound_Extrapol[VDP_Current_Line][1];
-      PSG_Len += Sound_Extrapol[VDP_Current_Line][1];
+	for (VDP_Current_Line++; VDP_Current_Line < VDP_Num_Lines;
+			 VDP_Current_Line++)
+		{
+			buf[0] = Seg_L + Sound_Extrapol[VDP_Current_Line][0];
+			buf[1] = Seg_R + Sound_Extrapol[VDP_Current_Line][0];
+			YM2612_DacAndTimers_Update (buf, Sound_Extrapol[VDP_Current_Line][1]);
+			YM_Len += Sound_Extrapol[VDP_Current_Line][1];
+			PSG_Len += Sound_Extrapol[VDP_Current_Line][1];
 
-      Fix_Controllers ();
-      Cycles_M68K += CPL_M68K;
-      Cycles_Z80 += CPL_Z80;
-      if (DMAT_Lenght)
+			Fix_Controllers ();
+			Cycles_M68K += CPL_M68K;
+			Cycles_Z80 += CPL_Z80;
+			if (DMAT_Lenght)
 		//main68k_addCycles (Update_DMA ());
 		M68K_AddCycles(Update_DMA ());
 
-      VDP_Status |= 0x0004;	// HBlank = 1
+			VDP_Status |= 0x0004;	// HBlank = 1
 //              main68k_exec(Cycles_M68K - 436);
 //      main68k_exec (Cycles_M68K - 404);
-      M68K_Exec(Cycles_M68K - 404);
+			M68K_Exec(Cycles_M68K - 404);
 
-      VDP_Status &= 0xFFFB;	// HBlank = 0
+			VDP_Status &= 0xFFFB;	// HBlank = 0
 
 //      main68k_exec (Cycles_M68K);
-      M68K_Exec(Cycles_M68K);
+			M68K_Exec(Cycles_M68K);
 
 		Z80_Process(Cycles_Z80);
-    }
+		}
 
-  PSG_Special_Update ();
-  YM2612_Special_Update ();
+	PSG_Special_Update ();
+	YM2612_Special_Update ();
 if (!Use_SDL_Audio) {
 	//~ printf("C"); fflush(stdout);
 	//~ snd_stream_start(game_stream, Sound_Rate, Sound_Stereo);
@@ -409,12 +433,12 @@ if (!Use_SDL_Audio) {
 		printf("SSP: %i\n", ret);fflush(stdout);
 	}
 }
-  if (WAV_Dumping)
-    Update_WAV_Dump ();
-  if (GYM_Dumping)
-    Update_GYM_Dump ((unsigned char) 0, (unsigned char) 0, (unsigned char) 0);
+	if (WAV_Dumping)
+		Update_WAV_Dump ();
+	if (GYM_Dumping)
+		Update_GYM_Dump ((unsigned char) 0, (unsigned char) 0, (unsigned char) 0);
 
-  return (1);
+	return (1);
 }
 
 #ifdef DEBUG_GENESIS

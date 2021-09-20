@@ -11,6 +11,7 @@
 #include "util/SFont.h"
 #include "menu/menu.h"
 
+
 #include <dc/sound/sound.h>
 #include <dc/sound/aica_comm.h>
 
@@ -18,6 +19,7 @@
 #ifdef DREAMCAST
 #include <kos.h>
 extern uint8 romdisk[];
+//~ KOS_INIT_FLAGS(INIT_DEFAULT | INIT_OCINDEX);
 KOS_INIT_FLAGS(INIT_DEFAULT);
 KOS_INIT_ROMDISK(romdisk);
 #endif
@@ -918,6 +920,14 @@ void watchdog_pet()
 {
 	sleeptime = 0;
 }
+void watchdog_pause()
+{
+	paused = 1;
+}
+void watchdog_resume()
+{
+	paused = 0;
+}
 void watchdog_init()
 {
 	parentthd = thd_current;
@@ -927,6 +937,7 @@ void watchdog_init()
 int Sonic_SMPS_Z80_Hack = 0;
 int Ristar_Hack = 0;
 int Force_Screen_On_Hack = 0;
+int Render_Point = 0;	//0 render at start of vblank, 1 render at end of vblank
 
 int main (int argc, char *argv[])
 {
@@ -1039,6 +1050,7 @@ int main (int argc, char *argv[])
 	
 	
 	watchdog_init();
+	printf("CCR: %08x\n", *(int*)0xFF00001c);
 #ifndef SKIPLOADER
 	extern void run_loader();
 	run_loader();
@@ -1046,7 +1058,17 @@ int main (int argc, char *argv[])
 #endif
 	
 	#define ROMDIR "/pc/home/alex/Emu/Genesis/"
-	int runresult = run(ROMDIR"pstar2.gen");
+	int runresult = run(ROMDIR"redzone.gen");
+	
+	if (Has_SRAM_Changed()) {
+		printf("SRAM changed\n");
+	
+		if (Save_SRAM()) {
+			printf("***Saved SRAM***\n");
+		}
+	} else {
+		printf("No need to save\n");
+	}
 	
 	if (Use_SDL_Audio == 2) {
 		AICA_CMDSTR_CHANNEL(tmp, cmd, chan);
@@ -1066,10 +1088,13 @@ int main (int argc, char *argv[])
 	}
 	
 	printf("runresult: %i\n", runresult);
-	
+	printf("Last alloc %p\n", malloc(4));
+	fflush(stdout);
 	//End_All ();
 	return 0;
 }
+
+struct BMFFont * emufont;
 
 int run(const char *rom_filename)
 {
@@ -1079,6 +1104,7 @@ int run(const char *rom_filename)
 	
 	printf("Name : \"%.48s\"\n", Game->Rom_Name);
 	printf("NameW: \"%.48s\"\n", Game->Rom_Name_W);
+	printf("Version: \"%.13s\"\n", Game->Version);
 	fflush(stdout);
 	
 	Sonic_SMPS_Z80_Hack = 0;
@@ -1098,8 +1124,11 @@ int run(const char *rom_filename)
 	} else if (strcmp(Game->Rom_Name_W, "SONIC 3D FLICKIES' ISLAND ") == 0) {
 		Sonic_SMPS_Z80_Hack = 1;
 	} else if (strcmp(Game->Rom_Name_W, "GUNSTAR HEROES ") == 0) {
-		Force_Screen_On_Hack = 1;
+		//~ Force_Screen_On_Hack = 1;
 	}
+	
+	chdir("/rd/");
+	emufont = BMFLoad("uroob.fnt", "vq");
 	
 	prof_start(PROF_TOTAL);
 	while (is_gens_running ())
@@ -1137,8 +1166,9 @@ int run(const char *rom_filename)
 		    }
 		  else			// EMULATION PAUSED
 		    {
+			    Update_Controllers();
 		      Flip ();
-		      Sleep (100);
+		      //~ Sleep (100);
 		    }
 		}
 	      else if (GYM_Playing)	// PLAY GYM
@@ -1174,5 +1204,9 @@ int run(const char *rom_filename)
 	}
 	prof_end(PROF_TOTAL);
 	prof_show();
+	
+	
+	BMFFree(emufont);
+	
 	return 0;
 }

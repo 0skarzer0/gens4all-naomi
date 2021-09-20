@@ -628,6 +628,7 @@ u8 Ram_Backup_Ex[64 * 1024];
 u8 Genesis_Rom[2 * 1024];
 u8 _32X_Genesis_Rom[256];
 u8 SRAM[64 * 1024];
+u8 OrigSRAM[64 * 1024];
 u32 Rom_Size;
 
 int BRAM_Ex_State;

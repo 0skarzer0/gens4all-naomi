@@ -1,4 +1,5 @@
-
+#include <assert.h>
+#include <dc/vmu_pkg.h>
 #include "gens4all.h"
 
 #include "input.h"
@@ -20,6 +21,15 @@
 #else
 #include "stef/z80.h"
 #endif
+
+#ifndef SAVE_TO_PC
+//This should be set in the Makefile, but if it's not, default to PC save
+//Set to 1 to save to PC, set to 0 to save to VMU
+#define SAVE_TO_PC	1
+#endif
+
+extern void watchdog_pause();
+extern void watchdog_resume();
 
 // CHUI: Changed key defaults for Dreamcast
 enum
@@ -195,128 +205,119 @@ Get_State_File_Name (char *name)
 int
 Load_State (char *Name)
 {
-  FILE *f;
-  unsigned char *buf;
-  int len;
+	//~ FILE *f;
+	int f;
+	unsigned char *buf;
+	int len;
 
-  if (Genesis_Started)
-    len = GENESIS_STATE_FILE_LENGHT_EX;
-  else if (SegaCD_Started)
-    len = SEGACD_STATE_FILE_LENGHT;
-  else if (_32X_Started)
-    len = G32X_STATE_FILE_LENGHT;
-  else
-    return 0;
+	if (Genesis_Started)
+		len = GENESIS_STATE_FILE_LENGHT_EX;
+	else if (SegaCD_Started)
+		len = SEGACD_STATE_FILE_LENGHT;
+	else if (_32X_Started)
+		len = G32X_STATE_FILE_LENGHT;
+	else
+		return 0;
 
-  buf = State_Buffer;
+	buf = State_Buffer;
 
-  if ((f = fopen (Name, "rb")) == NULL)
-    return 0;
+	if ((f = open (Name, O_RDONLY)) == -1)
+		return 0;
 
-  memset (buf, 0, len);
-  if (fread (buf, 1, len, f))
-    {
+	memset (buf, 0, len);
+	watchdog_pause();
+	if (read (f, buf, len))
+		{
 #ifdef RAZE
 	z80_reset();
 #else
-      z80_Reset (&M_Z80);
+			z80_Reset (&M_Z80);
 #endif
 //              main68k_reset();
 //              YM2612ResetChip(0);
 //              Reset_VDP();
 
-      if (SegaCD_Started)
-	{
-
-
-
-	}
-
-      if (_32X_Started)
-	{
-
-
-	}
-
-      Import_Genesis (buf);
-      buf += 0x22500;
-      if (SegaCD_Started)
-	{
-//                      Import_SegaCD(buf);
-	  buf += 0xE0000;
-	}
+			Import_Genesis (buf);
+			buf += 0x22500;
+			if (SegaCD_Started)
+			{
+		//                      Import_SegaCD(buf);
+				buf += 0xE0000;
+			}
 
 #ifdef SEGA_32X
-      if (_32X_Started)
-	{
-	  Import_32X (buf);
-	  buf += 0x82A00;
-	}
+			if (_32X_Started)
+			{
+				Import_32X (buf);
+				buf += 0x82A00;
+			}
 #endif
 
-      Flag_Clr_Scr = 1;
-      CRam_Flag = 1;
-      VRam_Flag = 1;
+			Flag_Clr_Scr = 1;
+			CRam_Flag = 1;
+			VRam_Flag = 1;
 
-      sprintf (Str_Tmp, "STATE %d LOADED", Current_State);
-      Put_Info (Str_Tmp, 2000);
-    }
+			sprintf (Str_Tmp, "STATE %d LOADED", Current_State);
+			Put_Info (Str_Tmp, 2000);
+		}
 
-  fclose (f);
+	close (f);
+	watchdog_resume();
 
-  return 1;
+	return 1;
 }
 
 
 int
 Save_State (char *Name)
 {
-  if (Name == NULL)
-    return 0;
-  FILE *f;
-  unsigned char *buf;
-  int len;
+	if (Name == NULL)
+		return 0;
+	FILE *f;
+	unsigned char *buf;
+	int len;
 
-  buf = State_Buffer;
-  if ((f = fopen (Name, "wb")) == NULL)
-    return 0;
+	buf = State_Buffer;
+	if ((f = fopen (Name, "wb")) == NULL)
+		return 0;
 
-  if (Genesis_Started)
-    len = GENESIS_STATE_FILE_LENGHT;
-  else if (SegaCD_Started)
-    len = SEGACD_STATE_FILE_LENGHT;
-  else if (_32X_Started)
-    len = G32X_STATE_FILE_LENGHT;
+	//~ if (Genesis_Started)
+		len = GENESIS_STATE_FILE_LENGHT;
+	//~ else if (SegaCD_Started)
+		//~ len = SEGACD_STATE_FILE_LENGHT;
+	//~ else if (_32X_Started)
+		//~ len = G32X_STATE_FILE_LENGHT;
 
-  if (buf == NULL)
-    return 0;
-  memset (buf, 0, len);
-  Export_Genesis (buf);
-  buf += 0x22500;
+	if (buf == NULL)
+		return 0;
+	memset (buf, 0, len);
+	Export_Genesis (buf);
+	buf += 0x22500;
 
 #ifdef SEGA_CD
-  if (SegaCD_Started)
-    {
+	if (SegaCD_Started)
+		{
 //              Export_SegaCD(buf);
-      buf += 0xE0000;
-    }
+			buf += 0xE0000;
+		}
 #endif
 
 #ifdef SEGA_32X
-  if (_32X_Started)
-    {
-      Export_32X (buf);
-      buf += 0x82A00;
-    }
+	if (_32X_Started)
+		{
+			Export_32X (buf);
+			buf += 0x82A00;
+		}
 #endif
+	watchdog_pause();
+	fwrite (State_Buffer, 1, len, f);
+	fclose (f);
+	watchdog_resume();
 
-  fwrite (State_Buffer, 1, len, f);
-  fclose (f);
+	sprintf (Str_Tmp, "STATE %d SAVED", Current_State);
+	Put_Info (Str_Tmp, 2000);
 
-  sprintf (Str_Tmp, "STATE %d SAVED", Current_State);
-  Put_Info (Str_Tmp, 2000);
-
-  return 1;
+	return 1;
 }
 
 
@@ -460,13 +461,14 @@ others
 void
 Import_Genesis (unsigned char *Data)
 {
-#if 0
+//~ #if 0
   unsigned char Reg_1[0x200], Version, *src;
   int i;
 
   VDP_Int = 0;
   DMAT_Lenght = 0;
   Version = Data[0x50];
+	assert(Version == 0xdc);
 
   for (i = 0; i < 0x80; i++)
     CRam[i] = Data[i + 0x112];
@@ -518,17 +520,17 @@ Import_Genesis (unsigned char *Data)
 
       if (Version == 4)
 	{
-	  M_Z80.IM = Data[0x437];
-	  M_Z80.IFF.b.IFF1 = (Data[0x438] & 1) << 2;
-	  M_Z80.IFF.b.IFF2 = (Data[0x438] & 1) << 2;
+	  //~ M_Z80.IM = Data[0x437];
+	  //~ M_Z80.IFF.b.IFF1 = (Data[0x438] & 1) << 2;
+	  //~ M_Z80.IFF.b.IFF2 = (Data[0x438] & 1) << 2;
 
 	  Z80_State |= (Data[0x439] & 1) << 1;
 	}
       else
 	{
-	  M_Z80.IM = 1;
-	  M_Z80.IFF.b.IFF1 = (Data[0x436] & 1) << 2;
-	  M_Z80.IFF.b.IFF2 = (Data[0x436] & 1) << 2;
+	  z80_set_reg(Z80_REG_IM, 1);
+	  z80_set_reg(Z80_REG_IFF1, Data[0x436] & 1);
+	  z80_set_reg(Z80_REG_IFF1, (Data[0x436] >> 1) & 1);
 
 	  Z80_State |= ((Data[0x439] & 1) ^ 1) << 1;
 	  Z80_State |= ((Data[0x438] & 1) ^ 1) << 2;
@@ -557,34 +559,35 @@ Import_Genesis (unsigned char *Data)
 	}
     }
 
-  z80_Set_AF (&M_Z80, Data[0x404] + (Data[0x405] << 8));
-  M_Z80.BC.w.BC = Data[0x408] + (Data[0x409] << 8);
-  M_Z80.DE.w.DE = Data[0x40C] + (Data[0x40D] << 8);
-  M_Z80.HL.w.HL = Data[0x410] + (Data[0x411] << 8);
-  M_Z80.IX.w.IX = Data[0x414] + (Data[0x415] << 8);
-  M_Z80.IY.w.IY = Data[0x418] + (Data[0x419] << 8);
-  z80_Set_PC (&M_Z80, Data[0x41C] + (Data[0x41D] << 8));
-  M_Z80.SP.w.SP = Data[0x420] + (Data[0x421] << 8);
-  z80_Set_AF2 (&M_Z80, Data[0x424] + (Data[0x425] << 8));
-  M_Z80.BC2.w.BC2 = Data[0x428] + (Data[0x429] << 8);
-  M_Z80.DE2.w.DE2 = Data[0x42C] + (Data[0x42D] << 8);
-  M_Z80.HL2.w.HL2 = Data[0x430] + (Data[0x431] << 8);
-  M_Z80.I = Data[0x434] & 0xFF;
+  z80_set_reg(Z80_REG_AF, Data[0x404] + (Data[0x405] << 8));
+  z80_set_reg(Z80_REG_BC, Data[0x408] + (Data[0x409] << 8));
+  z80_set_reg(Z80_REG_DE, Data[0x40C] + (Data[0x40D] << 8));
+  z80_set_reg(Z80_REG_HL, Data[0x410] + (Data[0x411] << 8));
+  z80_set_reg(Z80_REG_IX, Data[0x414] + (Data[0x415] << 8));
+  z80_set_reg(Z80_REG_IY, Data[0x418] + (Data[0x419] << 8));
+  z80_set_reg(Z80_REG_PC, Data[0x41C] + (Data[0x41D] << 8));
+  z80_set_reg(Z80_REG_SP, Data[0x420] + (Data[0x421] << 8));
+  z80_set_reg(Z80_REG_AF2, Data[0x424] + (Data[0x425] << 8));
+  z80_set_reg(Z80_REG_BC2, Data[0x428] + (Data[0x429] << 8));
+  z80_set_reg(Z80_REG_DE2, Data[0x42C] + (Data[0x42D] << 8));
+  z80_set_reg(Z80_REG_HL2, Data[0x430] + (Data[0x431] << 8));
+  z80_set_reg(Z80_REG_IR, Data[0x434] & 0xFF);
 
-  main68k_GetContext (&Context_68K);
+  M68K_CONTEXT c68k;
+  m68k_get_context (&c68k);
 
   for (i = 0; i < 24; i++)
     Set_VDP_Reg (i, Data[0xFA + i]);
 
-  src = (unsigned char *) &Context_68K.dreg[0];
+  src = (unsigned char *) &c68k.dreg[0];
   for (i = 0; i < 8 * 2 * 4; i++)
     *src++ = Data[0x80 + i];
 
-  src = (unsigned char *) &Context_68K.pc;
+  src = (unsigned char *) &c68k.pc;
   for (i = 0; i < 4; i++)
     *src++ = Data[0xC8 + i];
 
-  src = (unsigned char *) &Context_68K.sr;
+  src = (unsigned char *) &c68k.sr;
   for (i = 0; i < 2; i++)
     *src++ = Data[0xD0 + i];
 
@@ -593,28 +596,28 @@ Import_Genesis (unsigned char *Data)
       if (Data[0xD1] & 0x20)
 	{
 	  // Supervisor
-	  src = (unsigned char *) &Context_68K.asp;
+	  src = (unsigned char *) &c68k.asp;
 	  for (i = 0; i < 2; i++)
 	    *src++ = Data[0xD2 + i];
 	}
       else
 	{
 	  // User
-	  src = (unsigned char *) &Context_68K.asp;
+	  src = (unsigned char *) &c68k.asp;
 	  for (i = 0; i < 2; i++)
 	    *src++ = Data[0xD6 + i];
 	}
     }
 
-  main68k_SetContext (&Context_68K);
+  m68k_set_context (&c68k);
 
-#endif
+//~ #endif
 }
 
 
 void Export_Genesis (unsigned char *Data)
 {
-#if 0
+//~ #if 0
   unsigned char Reg_1[0x200], *src;
   int i;
 
@@ -627,7 +630,7 @@ void Export_Genesis (unsigned char *Data)
   Data[0x03] = 0x40;
   Data[0x04] = 0xE0;
 
-  Data[0x50] = 5;		// Version
+  Data[0x50] = 0xdc;		// Version
   Data[0x51] = 0;		// Gens
 
   PSG_Save_State ();
@@ -638,35 +641,37 @@ void Export_Genesis (unsigned char *Data)
       Data[0x61 + i * 2] = (PSG_Save[i] >> 8) & 0xFF;
     }
 
-  main68k_GetContext (&Context_68K);
+  //~ main68k_GetContext (&Context_68K);
+  M68K_CONTEXT c68k;
+  m68k_get_context(&c68k);
 
-  src = (unsigned char *) &(Context_68K.dreg[0]);
+  src = (unsigned char *) &(c68k.dreg[0]);
   for (i = 0; i < 8 * 2 * 4; i++)
     Data[0x80 + i] = *src++;
 
-  src = (unsigned char *) &(Context_68K.pc);
+  src = (unsigned char *) &(c68k.pc);
   for (i = 0; i < 4; i++)
     Data[0xC8 + i] = *src++;
 
-  src = (unsigned char *) &(Context_68K.sr);
+  src = (unsigned char *) &(c68k.sr);
   for (i = 0; i < 2; i++)
     Data[0xD0 + i] = *src++;
 
-  if (Context_68K.sr & 0x2000)
+  if (c68k.sr & 0x2000)
     {
-      src = (unsigned char *) &(Context_68K.asp);
+      src = (unsigned char *) &(c68k.asp);
       for (i = 0; i < 4; i++)
 	Data[0xD2 + i] = *src++;
-      src = (unsigned char *) &(Context_68K.areg[7]);
+      src = (unsigned char *) &(c68k.areg[7]);
       for (i = 0; i < 4; i++)
 	Data[0xD6 + i] = *src++;
     }
   else
     {
-      src = (unsigned char *) &(Context_68K.asp);
+      src = (unsigned char *) &(c68k.asp);
       for (i = 0; i < 4; i++)
 	Data[0xD6 + i] = *src++;
-      src = (unsigned char *) &(Context_68K.areg[7]);
+      src = (unsigned char *) &(c68k.areg[7]);
       for (i = 0; i < 4; i++)
 	Data[0xD2 + i] = *src++;
     }
@@ -706,32 +711,33 @@ void Export_Genesis (unsigned char *Data)
   for (i = 0; i < 0x200; i++)
     Data[i + 0x1E4] = Reg_1[i];
 
-  Data[0x404] = (unsigned char) (z80_Get_AF (&M_Z80) & 0xFF);
-  Data[0x405] = (unsigned char) (z80_Get_AF (&M_Z80) >> 8);
-  Data[0x408] = (unsigned char) (M_Z80.BC.w.BC & 0xFF);
-  Data[0x409] = (unsigned char) (M_Z80.BC.w.BC >> 8);
-  Data[0x40C] = (unsigned char) (M_Z80.DE.w.DE & 0xFF);
-  Data[0x40D] = (unsigned char) (M_Z80.DE.w.DE >> 8);
-  Data[0x410] = (unsigned char) (M_Z80.HL.w.HL & 0xFF);
-  Data[0x411] = (unsigned char) (M_Z80.HL.w.HL >> 8);
-  Data[0x414] = (unsigned char) (M_Z80.IX.w.IX & 0xFF);
-  Data[0x415] = (unsigned char) (M_Z80.IX.w.IX >> 8);
-  Data[0x418] = (unsigned char) (M_Z80.IY.w.IY & 0xFF);
-  Data[0x419] = (unsigned char) (M_Z80.IY.w.IY >> 8);
-  Data[0x41C] = (unsigned char) (z80_Get_PC (&M_Z80) & 0xFF);
-  Data[0x41D] = (unsigned char) (z80_Get_PC (&M_Z80) >> 8);
-  Data[0x420] = (unsigned char) (M_Z80.SP.w.SP & 0xFF);
-  Data[0x421] = (unsigned char) (M_Z80.SP.w.SP >> 8);
-  Data[0x424] = (unsigned char) (z80_Get_AF2 (&M_Z80) & 0xFF);
-  Data[0x425] = (unsigned char) (z80_Get_AF2 (&M_Z80) >> 8);
-  Data[0x428] = (unsigned char) (M_Z80.BC2.w.BC2 & 0xFF);
-  Data[0x429] = (unsigned char) (M_Z80.BC2.w.BC2 >> 8);
-  Data[0x42C] = (unsigned char) (M_Z80.DE2.w.DE2 & 0xFF);
-  Data[0x42D] = (unsigned char) (M_Z80.DE2.w.DE2 >> 8);
-  Data[0x430] = (unsigned char) (M_Z80.HL2.w.HL2 & 0xFF);
-  Data[0x431] = (unsigned char) (M_Z80.HL2.w.HL2 >> 8);
-  Data[0x434] = (unsigned char) (M_Z80.I);
-  Data[0x436] = (unsigned char) (M_Z80.IFF.b.IFF1 >> 2);
+  //~ Data[0x404] = (unsigned char) (z80_Get_AF (&M_Z80) & 0xFF);
+  Data[0x404] = (unsigned char) (z80_get_reg(Z80_REG_AF) & 0xFF);
+  Data[0x405] = (unsigned char) (z80_get_reg(Z80_REG_AF) >> 8);
+  Data[0x408] = (unsigned char) (z80_get_reg(Z80_REG_BC) & 0xFF);
+  Data[0x409] = (unsigned char) (z80_get_reg(Z80_REG_BC) >> 8);
+  Data[0x40C] = (unsigned char) (z80_get_reg(Z80_REG_DE) & 0xFF);
+  Data[0x40D] = (unsigned char) (z80_get_reg(Z80_REG_DE) >> 8);
+  Data[0x410] = (unsigned char) (z80_get_reg(Z80_REG_HL) & 0xFF);
+  Data[0x411] = (unsigned char) (z80_get_reg(Z80_REG_HL) >> 8);
+  Data[0x414] = (unsigned char) (z80_get_reg(Z80_REG_IX) & 0xFF);
+  Data[0x415] = (unsigned char) (z80_get_reg(Z80_REG_IX) >> 8);
+  Data[0x418] = (unsigned char) (z80_get_reg(Z80_REG_IY) & 0xFF);
+  Data[0x419] = (unsigned char) (z80_get_reg(Z80_REG_IY) >> 8);
+  Data[0x41C] = (unsigned char) (z80_get_reg(Z80_REG_PC) & 0xFF);
+  Data[0x41D] = (unsigned char) (z80_get_reg(Z80_REG_PC) >> 8);
+  Data[0x420] = (unsigned char) (z80_get_reg(Z80_REG_SP) & 0xFF);
+  Data[0x421] = (unsigned char) (z80_get_reg(Z80_REG_SP) >> 8);
+  Data[0x424] = (unsigned char) (z80_get_reg(Z80_REG_AF2) & 0xFF);
+  Data[0x425] = (unsigned char) (z80_get_reg(Z80_REG_AF2) >> 8);
+  Data[0x428] = (unsigned char) (z80_get_reg(Z80_REG_BC2) & 0xFF);
+  Data[0x429] = (unsigned char) (z80_get_reg(Z80_REG_BC2) >> 8);
+  Data[0x42C] = (unsigned char) (z80_get_reg(Z80_REG_DE2) & 0xFF);
+  Data[0x42D] = (unsigned char) (z80_get_reg(Z80_REG_DE2) >> 8);
+  Data[0x430] = (unsigned char) (z80_get_reg(Z80_REG_HL2) & 0xFF);
+  Data[0x431] = (unsigned char) (z80_get_reg(Z80_REG_HL2) >> 8);
+  Data[0x434] = (unsigned char) (z80_get_reg(Z80_REG_IR));
+  Data[0x436] = (unsigned char) (z80_get_reg(Z80_REG_IFF1) | (z80_get_reg(Z80_REG_IFF2)<<1));
 
   Data[0x438] = (unsigned char) (((Z80_State & 4) >> 2) ^ 1);
   Data[0x439] = (unsigned char) (((Z80_State & 2) >> 1) ^ 1);
@@ -754,7 +760,7 @@ void Export_Genesis (unsigned char *Data)
       Data[i + 0x12478 + 1] = VRam[i + 0];
       Data[i + 0x12478 + 0] = VRam[i + 1];
     }
-#endif
+//~ #endif
 }
 
 #ifdef SEGA_32X
@@ -1066,18 +1072,18 @@ Save_Config (char *File_Name)
   WritePrivateProfileString ("General", "Genesis Bios", Genesis_Bios,
 			     Conf_File);
 
-  WritePrivateProfileString ("General", "USA CD Bios", US_CD_Bios, Conf_File);
-  WritePrivateProfileString ("General", "EUROPE CD Bios", EU_CD_Bios,
-			     Conf_File);
-  WritePrivateProfileString ("General", "JAPAN CD Bios", JA_CD_Bios,
-			     Conf_File);
+  //~ WritePrivateProfileString ("General", "USA CD Bios", US_CD_Bios, Conf_File);
+  //~ WritePrivateProfileString ("General", "EUROPE CD Bios", EU_CD_Bios,
+			     //~ Conf_File);
+  //~ WritePrivateProfileString ("General", "JAPAN CD Bios", JA_CD_Bios,
+			     //~ Conf_File);
 
-  WritePrivateProfileString ("General", "32X 68000 Bios", _32X_Genesis_Bios,
-			     Conf_File);
-  WritePrivateProfileString ("General", "32X Master SH2 Bios",
-			     _32X_Master_Bios, Conf_File);
-  WritePrivateProfileString ("General", "32X Slave SH2 Bios", _32X_Slave_Bios,
-			     Conf_File);
+  //~ WritePrivateProfileString ("General", "32X 68000 Bios", _32X_Genesis_Bios,
+			     //~ Conf_File);
+  //~ WritePrivateProfileString ("General", "32X Master SH2 Bios",
+			     //~ _32X_Master_Bios, Conf_File);
+  //~ WritePrivateProfileString ("General", "32X Slave SH2 Bios", _32X_Slave_Bios,
+			     //~ Conf_File);
 
   WritePrivateProfileString ("General", "Rom 1", Recent_Rom[0], Conf_File);
   WritePrivateProfileString ("General", "Rom 2", Recent_Rom[1], Conf_File);
@@ -1521,19 +1527,19 @@ Load_Config (char *File_Name, void *Game_Active)
   GetPrivateProfileString ("General", "Genesis Bios", Rom_Dir,
 			   &Genesis_Bios[0], 1024, Conf_File);
 
-  GetPrivateProfileString ("General", "USA CD Bios", Rom_Dir, &US_CD_Bios[0],
-			   1024, Conf_File);
-  GetPrivateProfileString ("General", "EUROPE CD Bios", Rom_Dir,
-			   &EU_CD_Bios[0], 1024, Conf_File);
-  GetPrivateProfileString ("General", "JAPAN CD Bios", Rom_Dir,
-			   &JA_CD_Bios[0], 1024, Conf_File);
+  //~ GetPrivateProfileString ("General", "USA CD Bios", Rom_Dir, &US_CD_Bios[0],
+			   //~ 1024, Conf_File);
+  //~ GetPrivateProfileString ("General", "EUROPE CD Bios", Rom_Dir,
+			   //~ &EU_CD_Bios[0], 1024, Conf_File);
+  //~ GetPrivateProfileString ("General", "JAPAN CD Bios", Rom_Dir,
+			   //~ &JA_CD_Bios[0], 1024, Conf_File);
 
-  GetPrivateProfileString ("General", "32X 68000 Bios", Rom_Dir,
-			   &_32X_Genesis_Bios[0], 1024, Conf_File);
-  GetPrivateProfileString ("General", "32X Master SH2 Bios", Rom_Dir,
-			   &_32X_Master_Bios[0], 1024, Conf_File);
-  GetPrivateProfileString ("General", "32X Slave SH2 Bios", Rom_Dir,
-			   &_32X_Slave_Bios[0], 1024, Conf_File);
+  //~ GetPrivateProfileString ("General", "32X 68000 Bios", Rom_Dir,
+			   //~ &_32X_Genesis_Bios[0], 1024, Conf_File);
+  //~ GetPrivateProfileString ("General", "32X Master SH2 Bios", Rom_Dir,
+			   //~ &_32X_Master_Bios[0], 1024, Conf_File);
+  //~ GetPrivateProfileString ("General", "32X Slave SH2 Bios", Rom_Dir,
+			   //~ &_32X_Slave_Bios[0], 1024, Conf_File);
 
   GetPrivateProfileString ("General", "Rom 1", "", &Recent_Rom[0][0], 1024,
 			   Conf_File);
@@ -1724,7 +1730,7 @@ Load_Config (char *File_Name, void *Game_Active)
   GetPrivateProfileString ("Options", "Gens manual path", "manual.exe",
 			   Manual_Path, 1024, Conf_File);
 
-  Controller_1_Type = GetPrivateProfileInt ("Input", "P1.Type", 1, Conf_File);
+  Controller_1_Type = GetPrivateProfileInt ("Input", "P1.Type", 0, Conf_File);
   Keys_Def[0].Up = GetPrivateProfileInt ("Input", "P1.Up", DIK_UP, Conf_File);
   Keys_Def[0].Down =
     GetPrivateProfileInt ("Input", "P1.Down", DIK_DOWN, Conf_File);
@@ -1794,7 +1800,7 @@ Load_Config (char *File_Name, void *Game_Active)
   Keys_Def[4].Y = GetPrivateProfileInt ("Input", "P1D.Y", 0, Conf_File);
   Keys_Def[4].Z = GetPrivateProfileInt ("Input", "P1D.Z", 0, Conf_File);
 
-  Controller_2_Type = GetPrivateProfileInt ("Input", "P2.Type", 1, Conf_File);
+  Controller_2_Type = GetPrivateProfileInt ("Input", "P2.Type", 0, Conf_File);
   Keys_Def[1].Up = GetPrivateProfileInt ("Input", "P2.Up", DIK_Y, Conf_File);
   Keys_Def[1].Down =
     GetPrivateProfileInt ("Input", "P2.Down", DIK_H, Conf_File);
@@ -1901,66 +1907,453 @@ Load_As_Config (void *Game_Active)
 }
 
 
-int
-Load_SRAM (void)
-{
-  FILE *SRAM_File = 0;
-  char Name[2048];
-
-  memset (SRAM, 0, 64 * 1024);
-
-  strcpy (Name, SRAM_Dir);
-  strcat (Name, Rom_Name);
-  strcat (Name, ".srm");
-
-  if ((SRAM_File = fopen (Name, "rb")) == 0)
-    return 0;
-  fread (SRAM, 64 * 1024, 1, SRAM_File);
-  fclose (SRAM_File);
-
-  strcpy (Str_Tmp, "SRAM loaded from ");
-  strcat (Str_Tmp, Name);
-  Put_Info (Str_Tmp, 2000);
-  return 1;
+static int GetSRAMSize(void) {
+	int i, size_to_save;
+	i = (64 * 1024) - 1;
+	while ((i >= 0) && (SRAM[i] == 0))
+		i--;
+	if (i < 0)
+		return 0;
+	i++;
+	size_to_save = 1;
+	while (i > size_to_save)
+		size_to_save <<= 1;
+	
+	return size_to_save;
 }
 
-int
-Save_SRAM (void)
-{
-  FILE *SRAM_File = 0;
-  int size_to_save, i;
-  char Name[2048];
-
-  i = (64 * 1024) - 1;
-  while ((i >= 0) && (SRAM[i] == 0))
-    i--;
-
-  if (i < 0)
-    return 0;
-
-  i++;
-
-  size_to_save = 1;
-  while (i > size_to_save)
-    size_to_save <<= 1;
-
-  strcpy (Name, SRAM_Dir);
-  strcat (Name, Rom_Name);
-  strcat (Name, ".srm");
-
-  if ((SRAM_File = fopen (Name, "wb")) == 0)
-    return 0;
-
-  fwrite (SRAM, size_to_save, 1, SRAM_File);
-  fclose (SRAM_File);
-
-  strcpy (Str_Tmp, "SRAM saved in ");
-  strcat (Str_Tmp, Name);
-  Put_Info (Str_Tmp, 2000);
-
-  return 1;
+/*
+	Returns:
+	0 if nothing to save
+	1 if only even bytes have data
+	2 if only odd bytes have data
+	3 if both even and odd bytes have data
+*/
+static int GetSRAMColumns(int size) {
+	int i, cols = 0;
+	for(i = 0; i < size; i++) {
+		if (SRAM[i]) {
+			if (i & 1) {
+				//Odd byte
+				cols |= 2;
+			} else {
+				//Even
+				cols |= 1;
+			}
+		}
+	}
+	return cols;
 }
 
+static void SRAMSqueeze(const unsigned char *src, unsigned char *dst, int size) {
+	int i;
+	for(i = 0; i < size; i++) {
+		*dst++ = *src;
+		src += 2;
+	}
+}
+
+static void SRAMStretch(const unsigned char *src, unsigned char *dst, int size) {
+	int i;
+	for(i = 0; i < size; i++) {
+		*dst = *src++;
+		dst += 2;
+	}
+}
+
+static int FileSizeBlocks(const char *name) {
+	FILE *f = fopen(name, "rb");
+	if (f == NULL) {
+		return 0;
+	}
+	fseek(f, 0, SEEK_END);
+	int len = ftell(f);
+	fclose(f);
+	printf("Len %i\n", len);
+	return (len + 511) / 512;
+}
+/*
+static int FileSizeBlocks(const char *name) {
+	struct stat dstat;
+	memset(&dstat, 0, sizeof(dstat));
+	if (stat(name, &dstat) == -1) {
+		printf("Couldn't stat file \"%s\"\n", name);
+		return 0;
+	}
+	
+	return (dstat.st_size + 511) / 512;
+}*/
+
+static char SaveName[2000];
+static unsigned char FileBuff[66*1024];
+char FriendlySaveDest[1000];
+int Blocks_Required;
+int Destination_Free_Space;
+static uint8_t *VMUData;
+static int VMUDataSize;
+
+static void GetSaveFileName(void) {
+	if (SAVE_TO_PC) {
+		strcpy (SaveName, "/pc/home/alex/Emu/Genesis/GENS4ALL_");
+		strcpy(FriendlySaveDest, "PC");
+	} else {
+		maple_device_t *vmu = maple_enum_type(0, MAPLE_FUNC_MEMCARD);
+		if (vmu) {
+			sprintf(SaveName, "/vmu/%c%i/GENS4ALL_", 'a' + vmu->port, vmu->unit);
+			sprintf(FriendlySaveDest, "VMU %c%i", 'A' + vmu->port, vmu->unit);
+			Destination_Free_Space = vmufs_free_blocks(vmu);
+		} else {
+			strcpy(SaveName, "/ram/GENS4ALL_");
+			strcpy(FriendlySaveDest, "Temporary RAM");
+			Destination_Free_Space = 100;
+		}
+	}
+	
+	//Hash the ROM serial number for the end of the filename
+	unsigned int hash = 5381, i;
+	for(i = 0; i < sizeof(Game->Version); i++) {
+		hash = (hash <<5) + hash + Game->Version[i];
+	}
+	hash ^= hash>>16;
+	
+	//Convert to letters
+	char mininame[4] = {0,0,0,0};
+	for(i = 0; i < 3; i++) { 
+		mininame[i] = hash % 52;
+		hash /= 52;
+		
+		mininame[i] = (mininame[i] > 26) ? ('a' + mininame[i] - 26) : (mininame[i] + 'A');
+	}
+	//~ char mininame[] = {Rom_Name[0],Rom_Name[1],Rom_Name[2], 0};
+	strcat (SaveName, mininame);
+}
+
+int Has_SRAM_Changed(void) {
+	return memcmp(SRAM, OrigSRAM, 64*1024) != 0;
+	
+	int i;
+	for(i = 0; i < 64*1024; i++) {
+		if (SRAM[i] != 0)
+			return 1;
+	}
+	return 0;
+}
+
+int Load_SRAM (void)
+{
+	FILE *SRAM_File = 0;
+	
+	memset (SRAM, 0, 64 * 1024);
+	memset (OrigSRAM, 0, 64 * 1024);
+	
+	GetSaveFileName();
+	
+	printf("***LOADING SRAM***\n%s\n", SaveName);
+	if ((SRAM_File = fopen (SaveName, "rb")) == 0)
+		return 0;
+	fread (FileBuff, 64 * 1024, 1, SRAM_File);
+	
+	if (!feof(SRAM_File)) {
+		//Incomplete read? Failure.
+		fclose (SRAM_File);
+		return 0;
+	}
+	fclose (SRAM_File);
+	
+	vmu_pkg_t vmupkg;
+	if (vmu_pkg_parse(FileBuff, &vmupkg)) {
+		//CRC error
+		return 0;
+	}
+	
+	int cols = vmupkg.data[0];
+	int sramsize = vmupkg.data[1] | (vmupkg.data[2] << 8);
+	
+	if (sramsize > 64*1024)
+		return 0;
+	
+	if (cols == 1)
+		SRAMStretch(vmupkg.data+3, SRAM, sramsize);
+	else if (cols == 2)
+		SRAMStretch(vmupkg.data+3, SRAM+1, sramsize);
+	else if (cols == 3)
+		memcpy(SRAM, vmupkg.data+3, sramsize);
+	
+	memcpy(OrigSRAM, SRAM, 64*1024);
+	
+	strcpy (Str_Tmp, "SRAM loaded from ");
+	strcat (Str_Tmp, SaveName);
+	Put_Info (Str_Tmp, 2000);
+	return 1;
+}
+
+int Load_SRAM_FS (void)
+{
+	FILE *SRAM_File = 0;
+	char Name[2048];
+
+	memset (SRAM, 0, 64 * 1024);
+	
+	strcpy (Name, SRAM_Dir);
+	strcat (Name, Rom_Name);
+	strcat (Name, ".srm");
+
+	printf("***LOADING SRAM***\n%s\n",Name);
+	if ((SRAM_File = fopen (Name, "rb")) == 0)
+		return 0;
+	fread (SRAM, 64 * 1024, 1, SRAM_File);
+	fclose (SRAM_File);
+
+	strcpy (Str_Tmp, "SRAM loaded from ");
+	strcat (Str_Tmp, Name);
+	Put_Info (Str_Tmp, 2000);
+	return 1;
+}
+
+
+int Prepare_Save_SRAM (void)
+{
+	assert(VMUData == NULL);
+	Blocks_Required = 0;
+	Destination_Free_Space = 0;
+	
+	//~ maple_device_t *vmu = maple_enum_type(0, MAPLE_FUNC_MEMCARD);
+	//~ if (vmu == NULL)
+		//~ return 0;
+	
+	//~ printf("Got VMU at %c%i\n", 'a' + vmu->port, vmu->unit);
+	
+	int size_to_save = GetSRAMSize();
+	
+	printf("***PREPARING SAVE SRAM***\n%s (%i byte SRAM)\n", SaveName, size_to_save);
+
+	GetSaveFileName();
+	
+	
+	
+	//Squeeze SRAM and add header
+	int cols = GetSRAMColumns(size_to_save);
+	if (cols == 0) {
+		return 0;	//Nothing to save
+	} else if (cols == 1) {
+		size_to_save /= 2;
+		SRAMSqueeze(SRAM, FileBuff+3, size_to_save/2);
+	} else if (cols == 2) {
+		size_to_save /= 2;
+		SRAMSqueeze(SRAM+1, FileBuff+3, size_to_save);
+	} else {
+		memcpy(FileBuff+3, SRAM, size_to_save);
+	}
+	FileBuff[0] = cols;
+	FileBuff[1] = size_to_save & 0xff;
+	FileBuff[2] = (size_to_save >> 8) & 0xff;
+	
+	printf("SRAM size after squeeze: %i\n", size_to_save);
+	
+	//Make header
+	vmu_pkg_t vmupkg;
+	//~ strncpy(vmupkg.app_id, SaveName, sizeof(vmupkg.app_id)-1);
+	strcpy(vmupkg.app_id, "Gens4All");
+	//~ strcpy(vmupkg.desc_long, "Gens4All");	//Game->Rom_Name_W
+	strncpy(vmupkg.desc_long, Game->Rom_Name_W, sizeof(vmupkg.desc_long)-1);
+	vmupkg.desc_long[sizeof(vmupkg.desc_long)-1] = 0;
+	strncpy(vmupkg.desc_short, Game->Rom_Name_W, sizeof(vmupkg.desc_short)-1);
+	vmupkg.desc_short[sizeof(vmupkg.desc_short)-1] = 0;
+	vmupkg.icon_cnt = 0;
+	vmupkg.icon_anim_speed = 0;
+	vmupkg.eyecatch_type = VMUPKG_EC_NONE;
+	vmupkg.data_len = size_to_save+3;
+	memset(vmupkg.icon_pal, 0, sizeof(vmupkg.icon_pal));
+	vmupkg.icon_data = 0;
+	vmupkg.eyecatch_data = 0;
+	vmupkg.data = FileBuff;
+	
+	if (vmu_pkg_build(&vmupkg, &VMUData, &VMUDataSize)) {
+		assert(0);
+	}
+	
+	//Check for space required
+	Blocks_Required = (VMUDataSize + 511) / 512 - FileSizeBlocks(SaveName);
+	//If the SRAM zeroes out so it shrinks, don't shrink VMU file
+	if (Blocks_Required < 0)
+		Blocks_Required = 0;
+	
+	printf("Calc %i byte SRAM\n",  GetSRAMSize());
+	printf("%i block size, %i extra blocks needed, %i blocks free\n", (VMUDataSize + 511) / 512, Blocks_Required, Destination_Free_Space);
+	printf("VMU file size %i\n", VMUDataSize);
+	
+	return 1;
+}
+
+void Abort_Save_SRAM(void) {
+	if (VMUData != NULL) {
+		free(VMUData);
+		VMUData = NULL;
+	}
+	VMUDataSize = 0;
+}
+
+int Commit_Save_SRAM(void) {
+	if (VMUData == NULL)
+		return 0;
+	
+	FILE *SRAM_File = 0;
+	
+	if ((SRAM_File = fopen (SaveName, "wb")) == 0)
+		goto failure;
+
+	printf("***COMMIT SAVE SRAM***\n");
+	//~ fwrite (SRAM, size_to_save, 1, SRAM_File);
+	watchdog_pause();
+	fwrite (VMUData, VMUDataSize, 1, SRAM_File);
+	fclose (SRAM_File);
+	watchdog_resume();
+
+	strcpy (Str_Tmp, "SRAM saved in ");
+	strcat (Str_Tmp, SaveName);
+	Put_Info (Str_Tmp, 2000);
+	
+	Abort_Save_SRAM();
+	memcpy(OrigSRAM, SRAM, 64*1024);
+	return 1;
+failure:
+	Abort_Save_SRAM();
+	return 0;
+}
+
+int Save_SRAM (void)
+{
+	if (Has_SRAM_Changed() && Prepare_Save_SRAM()) {
+		return Commit_Save_SRAM();
+	}
+	return 0;
+}
+#if 0
+int Save_SRAM (void)
+{
+	maple_device_t *vmu = maple_enum_type(0, MAPLE_FUNC_MEMCARD);
+	if (vmu == NULL)
+		return 0;
+	
+	printf("Got VMU at %c%i\n", 'a' + vmu->port, vmu->unit);
+	
+	int size_to_save = GetSRAMSize();
+	
+	printf("***SAVING SRAM***\n%s (%i byte SRAM)\n", SaveName, size_to_save);
+
+	GetSaveFileName();
+	
+	int freespace = vmufs_free_blocks(vmu);
+	
+	//Squeeze SRAM and add header
+	unsigned char FileBuff[64*1024+3];
+	int cols = GetSRAMColumns(size_to_save);
+	if (cols == 0) {
+		return 0;	//Nothing to save
+	} else if (cols == 1) {
+		size_to_save /= 2;
+		SRAMSqueeze(SRAM, FileBuff+3, size_to_save/2);
+	} else if (cols == 2) {
+		size_to_save /= 2;
+		SRAMSqueeze(SRAM+1, FileBuff+3, size_to_save);
+	} else {
+		memcpy(FileBuff+3, SRAM, size_to_save);
+	}
+	FileBuff[0] = cols;
+	FileBuff[1] = size_to_save & 0xff;
+	FileBuff[2] = (size_to_save >> 8) & 0xff;
+	
+	printf("SRAM size after squeeze: %i\n", size_to_save);
+	
+	//Make header
+	vmu_pkg_t vmupkg;
+	//~ strncpy(vmupkg.app_id, SaveName, sizeof(vmupkg.app_id)-1);
+	strcpy(vmupkg.app_id, "Gens4All");
+	//~ strcpy(vmupkg.desc_long, "Gens4All");	//Game->Rom_Name_W
+	strncpy(vmupkg.desc_long, Game->Rom_Name_W, sizeof(vmupkg.desc_long)-1);
+	vmupkg.desc_long[sizeof(vmupkg.desc_long)-1] = 0;
+	strncpy(vmupkg.desc_short, Game->Rom_Name_W, sizeof(vmupkg.desc_short)-1);
+	vmupkg.desc_short[sizeof(vmupkg.desc_short)-1] = 0;
+	vmupkg.icon_cnt = 0;
+	vmupkg.icon_anim_speed = 0;
+	vmupkg.eyecatch_type = VMUPKG_EC_NONE;
+	vmupkg.data_len = size_to_save+3;
+	memset(vmupkg.icon_pal, 0, sizeof(vmupkg.icon_pal));
+	vmupkg.icon_data = 0;
+	vmupkg.eyecatch_data = 0;
+	vmupkg.data = FileBuff;
+	
+	uint8_t *vmudst;
+	int dstsize;
+	vmu_pkg_build(&vmupkg, &vmudst, &dstsize);
+	
+	//Check for space required
+	int blocks_needed = (dstsize + 511) / 512 - FileSizeBlocks(SaveName);
+	if (blocks_needed > freespace) {
+		printf("No free space\n");
+		if (!SAVE_TO_PC)
+			goto failure;
+	}
+	
+	
+	printf("Calc %i byte SRAM\n",  GetSRAMSize());
+	printf("%i block size, %i extra blocks needed, %i blocks free\n", (dstsize + 511) / 512, blocks_needed, freespace);
+	printf("VMU file size %i\n", dstsize);
+	FILE *SRAM_File = 0;
+	if ((SRAM_File = fopen (SaveName, "wb")) == 0)
+		goto failure;
+
+	fwrite (vmudst, dstsize, 1, SRAM_File);
+	fclose (SRAM_File);
+
+	strcpy (Str_Tmp, "SRAM saved in ");
+	strcat (Str_Tmp, SaveName);
+	Put_Info (Str_Tmp, 2000);
+	
+	free(vmudst);
+	return 1;
+failure:
+	free(vmudst);
+	return 0;
+}
+#endif
+int
+Save_SRAM_FS (void)
+{
+	FILE *SRAM_File = 0;
+	int size_to_save, i;
+	char Name[2048];
+
+	i = (64 * 1024) - 1;
+	while ((i >= 0) && (SRAM[i] == 0))
+		i--;
+
+	if (i < 0)
+		return 0;
+
+	i++;
+
+	size_to_save = 1;
+	while (i > size_to_save)
+		size_to_save <<= 1;
+
+	strcpy (Name, SRAM_Dir);
+	strcat (Name, Rom_Name);
+	strcat (Name, ".srm");
+
+	printf("***SAVING SRAM***\n%s (%i bytes)\n", Name, size_to_save);
+	if ((SRAM_File = fopen (Name, "wb")) == 0)
+		return 0;
+
+	fwrite (SRAM, size_to_save, 1, SRAM_File);
+	fclose (SRAM_File);
+
+	strcpy (Str_Tmp, "SRAM saved in ");
+	strcat (Str_Tmp, Name);
+	Put_Info (Str_Tmp, 2000);
+
+	return 1;
+}
 
 void
 S_Format_BRAM (unsigned char *buf)

@@ -20,6 +20,8 @@ KOS_CFLAGS+= -DROM_PREFIX="/pc/gensrom" -DDATA_PREFIX="/rd/"
 KOS_CFLAGS+= -DRAZE -DFAME
 
 #~ KOS_CFLAGS+= -DSKIPLOADER
+KOS_CFLAGS+= -DSAVE_TO_PC=0
+#~ KOS_CFLAGS+= -DVDP_HIRES
 
 KOS_CPPFLAGS = $(KOS_CFLAGS)
 
@@ -51,9 +53,10 @@ src/cpu/z80/raze/sh4/raze1.o: src/cpu/z80/raze/sh4/raze1.s
 
 OBJS =	\
 	src/main.o \
-	src/loader.o \
-	src/bmf.o \
-	src/sounddc/snd_stream.o \
+		src/loader.o \
+		src/gamemenu.o \
+		src/bmf.o \
+		src/sounddc/snd_stream.o \
 	src/gens.o \
 	src/genesis.o \
 	src/port.o \
@@ -91,6 +94,9 @@ OBJS =	\
 		src/pvrvdp/drawtilepvr.o \
 		src/pvrvdp/init.o \
 		src/pvrvdp/render.o \
+		src/pvrvdp/vram2tex.o \
+		src/pvrvdp/pal2cb.o \
+		src/pvrvdp/pal2cb_shadow.o \
 	romdisk.o
 
 clean:

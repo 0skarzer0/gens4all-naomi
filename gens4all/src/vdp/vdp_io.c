@@ -149,7 +149,7 @@ int H_Scroll_Mask_Table[] = {0x0000, 0x0007, 0x01F8, 0x01FF};
 
 u8 VRam[64 * 1024];
 u8 CRam[256];
-u32 VSRam_Over[8];
+u32 VSRam_Over[8+30];	//Was just 8, but "VSRam_Over[28] = 8" below would write past the end of this array
 u8 VSRam[256];
 u8 H_Counter_Table[512 * 2];
 struct Reg_VDP_Type VDP_Reg;
@@ -188,6 +188,14 @@ int VDP_Num_Lines;
 int VDP_Num_Vis_Lines;
 int CRam_Flag;
 int VRam_Flag;
+
+int Raster_ColorSplit;
+int Raster_ColorSplitLine = 1<<17;
+char Raster_Lines[256];
+char Raster_BgColor[256*2];
+u8 Raster_VSRam[256];
+u8 Raster0_CRam[256];
+u8 Raster1_CRam[256];
 
 INLINE void vdp_no_dma(void)
 {
@@ -275,6 +283,15 @@ static void vdp_process_dma(u32 vdp_cd_info)
 				case 0x1: /* VRAM  */
 					VRam_Flag = 1;
 					DMAT_Type = 0;
+					
+					if (1) {
+						//Detect if writing to sprite table here:
+						u32 sprstart = Spr_Addr - (u32)VRam;
+						u32 sprend = sprstart + (H_Cell == 32 ? 64*4 : 80*4);
+						u32 dmaend = dst + len * dst_step;
+						if (sprstart < dmaend && dst < sprend)
+							Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SPRLIST_CHANGE;
+					}
 
 					for(i=0;i<len;i++)
 					{
@@ -301,6 +318,7 @@ static void vdp_process_dma(u32 vdp_cd_info)
 						*(u16 *)(&CRam[dst & 0x7E]) = data;
 						dst += dst_step;
 					}
+					Raster_Lines[VDP_Current_Line] |= RASTER_LINE_COLOR_CHANGE;
 					break;
 
 				case 0x3: /* VSRAM */
@@ -314,6 +332,8 @@ static void vdp_process_dma(u32 vdp_cd_info)
 						*(u16 *)(&VSRam[dst & 0x7E]) = data;
 						dst += dst_step;
 					}
+					//~ VSRam_Line_Dirty = 1;
+					Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCROLL_CHANGE;
 					break;
 			}
 
@@ -420,7 +440,7 @@ void Reset_VDP(void)
 		H_Counter_Table[(i*2) + 1] = ((i*205)/488) - 0x1C;
 	}
 
-	VSRam_Over[28] = 0;
+	VSRam_Over[28] = 0;	//This reads past the end of the array...
 //	VSRam_Over[7] = 0;
 }
 
@@ -663,6 +683,14 @@ void Write_Word_VDP_Data(u16 Data)
 		case 0x8: return; /* write access (wrong) */
 
 		case 0x9: /* VRAM write access */
+			//TODO Detect if writing to sprite table here:
+			//Detect if writing to sprite table here:
+			if (1) {
+				u32 sprstart = Spr_Addr - (u32)VRam;
+				u32 sprend = sprstart + (H_Cell == 32 ? 64*4 : 80*4);
+				if (Ctrl.Address >= sprstart && Ctrl.Address < sprend)
+					Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SPRLIST_CHANGE;
+			}
 			VRam_Flag = 1;
 			if (Ctrl.Address & 1)
 			{
@@ -674,10 +702,14 @@ void Write_Word_VDP_Data(u16 Data)
 		case 0xA: /* CRAM write access */
 			CRam_Flag = 1;
 			((u16 *)CRam)[(Ctrl.Address & 0x7F) >> 1] = Data;
+			//Don't bother creating a raster for bg color changes, since we handle those in Do_Genesis_Frame
+			if (((Ctrl.Address & 0x7F) >> 1) != VDP_Reg.BG_Color)
+				Raster_Lines[VDP_Current_Line] |= RASTER_LINE_COLOR_CHANGE;
 			break;
 
 		case 0xB: /* VSRAM write access */
 			((u16 *)VSRam)[(Ctrl.Address & 0x7F) >> 1] = Data;
+			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCROLL_CHANGE;
 			break;
 
 		case 0xC:
@@ -721,6 +753,7 @@ int Set_VDP_Reg(int Num_Reg, int val)
 			VDP_Reg.Set3 = val;
 			H_Scroll_Mask = H_Scroll_Mask_Table[val & 3];
 			V_Scroll_MMask = (val & 4)?0x7E:0;
+			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCROLL_CHANGE;
 			break;
 
 		case VDP_SET4_REG:
@@ -760,6 +793,7 @@ int Set_VDP_Reg(int Num_Reg, int val)
 		case VDP_SCRA_REG:
 			VDP_Reg.Pat_ScrA_Adr = val;
 			ScrA_Addr = ((val & 0x38) << 10) + (u32)VRam;
+			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCROLL_CHANGE | RASTER_LINE_MAPA_CHANGE;
 			break;
 
 		case VDP_WIN_REG:
@@ -770,12 +804,14 @@ int Set_VDP_Reg(int Num_Reg, int val)
 		case VDP_SCRB_REG:
 			VDP_Reg.Pat_ScrB_Adr = val;
 			ScrB_Addr = ((val & 0x7) << 13) + (u32)VRam;
+			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCROLL_CHANGE | RASTER_LINE_MAPB_CHANGE;
 			break;
 
 		case VDP_SPR_REG:
 			VDP_Reg.Spr_Att_Adr = val;
 			VRam_Flag |= 0x2;
 			Spr_Addr = ((val & (0x7E | (VDP_Reg.Set4 & 0x1)) ) << 9) + (u32)VRam;
+			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SPRLIST_CHANGE;
 			break;
 
 		case VDP_BGCOLOR_REG:
@@ -790,6 +826,7 @@ int Set_VDP_Reg(int Num_Reg, int val)
 		case VDP_HSCR_REG:
 			VDP_Reg.H_Scr_Adr = val;
 			H_Scroll_Addr = ((val & 0x3F) << 10) + (u32)VRam;
+			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCROLL_CHANGE;
 			break;
 
 		case VDP_SCRSIZE_REG:
@@ -856,11 +893,13 @@ int Set_VDP_Reg(int Num_Reg, int val)
 			val = (val & 0x1F) << 1;
 			val = (val < H_Cell)?val:H_Cell;
 			Win_X_Pos = val;
+			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_WIN_CHANGE;
 			break;
 
 		case VDP_WINV_REG:
 			VDP_Reg.Win_V_Pos = val;
 			Win_Y_Pos = val & 0x1F;
+			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_WIN_CHANGE;
 			break;
 
 		case VDP_DMALENL_REG:

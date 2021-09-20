@@ -61,6 +61,12 @@ typedef enum {
 } pc_command;
 
 typedef enum {
+	PC_MOD_REGULAR,
+	PC_MOD_INCLUDE,
+	PC_MOD_EXCLUDE,
+} pc_mod_mode;
+
+typedef enum {
 	PC_NEVER,
 	PC_LESS,
 	PC_EQUAL,
@@ -322,6 +328,11 @@ static inline void pc_set_small_uv(pvr_context *dst, pc_boolean small) {
 //Sets depth compare mode
 static inline void pc_set_depth_compare(pvr_context *dst, pc_depth_compare comparison) {
 	dst->mode1 = replace_bits(dst->mode1, comparison, 29, 3);
+}
+
+//Sets modifier mode
+static inline void pc_set_mod_mode(pvr_context *dst, pc_mod_mode mode) {
+	dst->mode1 = replace_bits(dst->mode1, mode, 29, 3);
 }
 
 //Sets backface culling
@@ -735,6 +746,20 @@ static inline void pc_set_default_sprite(pvr_context *dst) {
 	pc_set_sprite_offset_packed(dst, 0);
 	dst->bp.pad0 = 0;
 	dst->bp.pad1 = 0;
+	
+}
+
+static inline void pc_set_default_modifier(pvr_context *dst) {
+	dst->cmd = 0;
+	dst->mode1 = 0;
+	pc_no_mod(dst)->mode2 = 0;
+	pc_no_mod(dst)->tex = 0;
+	
+	pc_set_command(dst, PC_CMD_MODIFIER);
+	pc_set_list(dst, PC_OPAQUE_MOD);
+	pc_set_mod_mode(dst, PC_MOD_REGULAR);
+	
+	dst->bf.a = dst->bf.r = dst->bf.g = dst->bf.b = 0;
 	
 }
 

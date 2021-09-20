@@ -18,12 +18,12 @@ char Rom_Name[512];
 char Rom_Dir[1024];
 char IPS_Dir[1024];
 char Recent_Rom[9][1024];
-char US_CD_Bios[1024];
-char EU_CD_Bios[1024];
-char JA_CD_Bios[1024];
-char _32X_Genesis_Bios[1024];
-char _32X_Master_Bios[1024];
-char _32X_Slave_Bios[1024];
+//~ char US_CD_Bios[1024];
+//~ char EU_CD_Bios[1024];
+//~ char JA_CD_Bios[1024];
+//~ char _32X_Genesis_Bios[1024];
+//~ char _32X_Master_Bios[1024];
+//~ char _32X_Slave_Bios[1024];
 char Genesis_Bios[1024];
 
 
@@ -935,7 +935,7 @@ void Free_Rom (Rom * Rom_MD)
 		Save_BRAM ();
 #endif
 
-	Save_SRAM ();
+	//Save_SRAM ();
 	Save_Patch_File ();
 
 	if (WAV_Dumping)

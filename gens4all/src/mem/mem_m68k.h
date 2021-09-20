@@ -6,6 +6,7 @@
 extern unsigned char Ram_68k[64 * 1024];
 extern unsigned char *Rom_Data;
 extern unsigned char SRAM[64 * 1024];
+extern unsigned char OrigSRAM[64 * 1024];
 extern unsigned char Ram_Backup_Ex[64 * 1024];
 extern unsigned char Genesis_Rom[2 * 1024];
 extern unsigned char _32X_Genesis_Rom[256];

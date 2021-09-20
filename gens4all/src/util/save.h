@@ -8,7 +8,8 @@
 #define SEGACD_STATE_FILE_LENGHT     (0x22500 + 0xE0000)
 #define G32X_STATE_FILE_LENGHT       (0x22500 + 0x82A00)
 #define SCD32X_STATE_FILE_LENGHT     (0x22500 + 0xE0000 + 0x82A00)
-#define MAX_STATE_FILE_LENGHT        SCD32X_STATE_FILE_LENGHT
+#define MAX_STATE_FILE_LENGHT        GENESIS_STATE_FILE_LENGHT_EX
+//~ #define MAX_STATE_FILE_LENGHT        SCD32X_STATE_FILE_LENGHT
 
 extern char State_Dir[1024];
 extern char SRAM_Dir[1024];
@@ -31,6 +32,15 @@ int Save_Config(char *File_Name);
 int Save_As_Config(void);
 int Load_Config(char *File_Name, void *Game_Active);
 int Load_As_Config(void *Game_Active);
+
+extern int Blocks_Required;
+extern int Destination_Free_Space;
+extern char FriendlySaveDest[1000];
+int Has_SRAM_Changed(void);
+int Prepare_Save_SRAM (void);	//Returns 1 if ready to save. Sets Blocks_Required. Must Abort or Commit before preparing another save
+void Abort_Save_SRAM(void);
+int Commit_Save_SRAM(void);
+
 int Load_SRAM(void);
 int Save_SRAM(void);
 int Load_BRAM(void);

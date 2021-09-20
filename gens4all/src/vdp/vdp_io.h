@@ -34,7 +34,7 @@ struct Reg_VDP_Type
 extern unsigned char VRam[64 * 1024];
 extern unsigned char CRam[256];
 extern unsigned char VSRam[256];
-extern unsigned int VSRam_Over[8];
+extern unsigned int VSRam_Over[8+30];
 extern unsigned char H_Counter_Table[512 * 2];
 extern unsigned int Spr_Link[256];
 extern int Genesis_Started;
@@ -62,6 +62,32 @@ struct Ctrl_VDP_Type
 };
 
 extern struct Ctrl_VDP_Type Ctrl;
+
+extern int Raster_ColorSplit;
+extern int Raster_ColorSplitLine;
+
+struct RasterData {
+	short Spr[80*4];
+	short Pal[16*4];
+	unsigned int *MapA;
+	unsigned int *MapB;
+	unsigned int *Win;
+	int linescroll;
+	short VSRAM[80];
+};
+
+#define RASTER_LINE_COLOR_CHANGE	(0x01)
+#define RASTER_LINE_SCROLL_CHANGE	(0x02)
+#define RASTER_LINE_SCREEN_OFF		(0x04)
+#define RASTER_LINE_MAPA_CHANGE		(0x08)
+#define RASTER_LINE_MAPB_CHANGE		(0x10)
+#define RASTER_LINE_SPRLIST_CHANGE	(0x20)
+#define RASTER_LINE_WIN_CHANGE		(0x40)
+extern char Raster_Lines[256];
+extern unsigned char Raster_VSRam[256];
+extern char Raster_BgColor[256*2];
+extern unsigned char Raster0_CRam[256];
+extern unsigned char Raster1_CRam[256];
 
 void Reset_VDP(void);
 unsigned int Update_DMA(void);

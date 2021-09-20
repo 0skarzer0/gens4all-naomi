@@ -123,24 +123,4 @@ _VRAMToTexture:
 	.Lconstbackstride:
 		.long	4-TEXSTRIDE*(TILEHEIGHT-1)
 
-//void VRAMToTexture(void *src, void *dst);
-.globl _VRAMToTexture2
-_VRAMToTexture2:
-		PUSH(r8)
-		mov	#TEXSTRIDE>>8, stride
-		PUSH(r9)
-		shll8	stride
-		PUSH(r10)
-		mov	#TEXTILEROWS, rowcount
-		PUSH(r11)
-		PUSH(r12)
-		PUSH(r13)
-		
-		//mov.l	.Lconstbackstride, backstride
-		pref	@dst
-		
-		rts
-		 nop
-		 
-	
 //

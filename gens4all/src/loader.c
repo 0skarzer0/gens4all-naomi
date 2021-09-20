@@ -5,6 +5,7 @@
 
 #include "bmf.h"
 #include "pvrvdp/npvr_vertex.h"
+#include "util/save.h"
 
 extern void watchdog_pet();
 
@@ -26,8 +27,6 @@ LoaderInputs hold;
 LoaderInputs last;
 LoaderInputs holdtime;
 
-static int ButtonA, ButtonB;
-static int DpadUp, DpadDown, DpadLeft, DpadRight;
 int Reset_Input_Lockout = 0;
 
 static void read_cont() {
@@ -95,12 +94,14 @@ typedef struct {
 	const char *name;
 } LoadDirEntry;
 
-char dirnamebuff[NAMEBUFSIZE];
-int direntrycnt;
-LoadDirEntry direntries[MAXDIRENTRIES];
+static char dirnamebuff[NAMEBUFSIZE];
+static int direntrycnt;
+static LoadDirEntry direntries[MAXDIRENTRIES];
 
 #define MAX_DIRNAME	500
 static char curdir[MAX_DIRNAME] = "/";
+//~ static char curdir[MAX_DIRNAME] = "/pc/home/alex/Emu/Genesis/sm";
+//~ static char curdir[MAX_DIRNAME] = "/pc/home/alex/Emu/Genesis";
 
 static int IsDir(const char *name) {
 	struct stat dstat;
@@ -110,15 +111,19 @@ static int IsDir(const char *name) {
 	return S_ISDIR(dstat.st_mode);
 }
 
-int string_length_pixels(struct BMFFont *font, const char * str) {
+static int string_length_pixels(struct BMFFont *font, const char * str) {
 	int len = strlen(str);
 	return BMFStringWidth(font, AsciiReader, str, len);
 }
 
-void puts_center(struct BMFFont *font, float y, const char * str) {
+static void puts_center(struct BMFFont *font, float y, const char * str) {
 	BMFputs(font, 320 - string_length_pixels(font, str)/2, y, 1, AsciiReader, str);
 }
-
+int dircmp (const void *a, const void *b) {
+	const LoadDirEntry *ad = a;
+	const LoadDirEntry *bd = b;
+	return strcmp(ad->name, bd->name);
+}
 static int LoadDir(const char *dir) {
 	DIR *d;
 	
@@ -146,6 +151,7 @@ static int LoadDir(const char *dir) {
 	
 	int cnt = 0;
 	int namepos = 0;
+	
 	struct dirent *de = readdir(d);
 	while(de) {
 		if (cnt >= MAXDIRENTRIES)
@@ -168,12 +174,14 @@ static int LoadDir(const char *dir) {
 		}
 		watchdog_pet();	//Listing PC dirs over BBA is slow
 		de = readdir(d);
-	}
+		}
 
 	closedir(d);
 	
 	strcpy(curdir, dir);
 	direntrycnt = cnt;
+	
+	qsort(direntries, cnt, sizeof(LoadDirEntry), &dircmp);
 	
 	return 0;
 }
@@ -191,6 +199,8 @@ static void init_loader_video() {
 }
 
 static void (*loader_mode)();
+
+static void update_save();
 
 static void navigate_dir() {
 	static int cursorpos = 0;
@@ -270,6 +280,13 @@ static void navigate_dir() {
 		
 		//Restore renderer
 		init_loader_video();
+		
+		if (Has_SRAM_Changed()) {
+			if (Prepare_Save_SRAM()) {
+				loader_mode = &update_save;
+				return;
+			}
+		}
 	}
 	
 	pvr_set_bg_color(0,0,.1);
@@ -277,7 +294,7 @@ static void navigate_dir() {
 	pvr_scene_begin();
 	pvr_list_begin(PVR_LIST_TR_POLY);
 	
-	float top = 30;
+	float top = 40;
 	float left = 40;
 	
 	//Draw current dir
@@ -334,6 +351,83 @@ static void navigate_dir() {
 	pvr_scene_finish();
 }
 
+int save_result;
+static void display_save_result() {
+	if (click.b || click.a || click.s)
+		loader_mode = &navigate_dir;
+	
+	pvr_set_bg_color(0,0,.1);
+	pvr_wait_ready();
+	pvr_scene_begin();
+	pvr_list_begin(PVR_LIST_TR_POLY);
+	
+	if (save_result == -1)
+		puts_center(font, 240 - font->lineheight/2, "Not Saved");
+	else if (save_result == 0)
+		puts_center(font, 240 - font->lineheight/2, "Save Failed");
+	else if (save_result == 1)
+		puts_center(font, 240 - font->lineheight/2, "Save Completed");
+	else
+		puts_center(font, 240 - font->lineheight/2, "Unknown result");
+	
+	pvr_list_finish();
+	pvr_scene_finish();
+}
+
+static void update_save() {
+	if (Blocks_Required <= Destination_Free_Space) {
+		if (click.b) {
+			Abort_Save_SRAM();
+			save_result = -1;
+			loader_mode = &display_save_result;
+		}
+		if (click.a) {
+			pvr_set_bg_color(0,0,.1);
+			pvr_wait_ready();
+			pvr_scene_begin();
+			pvr_list_begin(PVR_LIST_TR_POLY);
+			
+			puts_center(font, 150, "Now Saving...");
+			
+			pvr_list_finish();
+			pvr_scene_finish();
+			
+			save_result = Commit_Save_SRAM();
+			loader_mode = &display_save_result;
+			return;
+		}
+	} else {
+		if (click.b || click.a || click.s) {
+			Abort_Save_SRAM();
+			loader_mode = &navigate_dir;
+		}
+	}
+	
+	pvr_set_bg_color(0,0,.1);
+	pvr_wait_ready();
+	pvr_scene_begin();
+	pvr_list_begin(PVR_LIST_TR_POLY);
+	
+	puts_center(font, 120, "Save Changed");
+	
+	puts_center(font, 180, "Saving to");
+	puts_center(font, 180+font->lineheight, FriendlySaveDest);
+	
+	if (Blocks_Required)
+		BMFprintf(font, 200, 300, 1, "Blocks Required: %i\nFree Space: %i", Blocks_Required, Destination_Free_Space);
+	
+	if (Blocks_Required <= Destination_Free_Space) {
+		puts_center(font, 400, "(A) Save   (B) Don't Save");
+	} else {
+		puts_center(font, 400, "Not enough space to save");
+	}
+	//~ BMFprintf(font, left + dirmarkwidth, y, 1, " %s", direntries[i].name);
+	
+	pvr_list_finish();
+	pvr_scene_finish();
+}
+
+
 static void title_screen() {
 	static float anim = 0;
 	int i;
@@ -363,7 +457,7 @@ static void title_screen() {
 	
 	//Version
 	puts_center(font, 180, "Accelerated Renderer");
-	puts_center(font, 180 + font->lineheight, "Release 2");
+	puts_center(font, 180 + font->lineheight, "Release 3.1");
 	
 	//Press Start
 	puts_center(font, 340, "Press Start");

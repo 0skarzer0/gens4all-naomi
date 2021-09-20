@@ -1,3 +1,6 @@
+#ifndef NPVR_VERTEX_H
+#define NPVR_VERTEX_H
+
 typedef unsigned int pvr_uv16;
 typedef unsigned int pvr_argb;
 
@@ -57,6 +60,7 @@ typedef struct {
 		pvr_argb argbm;
 		float intensitym;
 	};
+	int pad0, pad1;
 } pvr_vertex32m;
 
 //Modifiable textured vertex
@@ -109,12 +113,13 @@ typedef struct {
 	pvr_uv16 uv2;
 } pvr_vertex64s;
 
-static inline pvr_argb pv_pack_argb(float a, float r, float g, float b) {
-	return ( ((unsigned char)(a * 255.0f) ) << 24 ) | 
-		( ((unsigned char)(r * 255.0f) ) << 16 ) | 
-		( ((unsigned char)(g * 255.0f) ) << 8 ) |
-		( ((unsigned char)(b * 255.0f) ) << 0 );
-}
+//static inline pvr_argb pv_pack_argb(float a, float r, float g, float b) {
+#define pv_pack_argb(a, r, g, b) \
+	       (( ((unsigned char)(a * 255.0f) ) << 24 ) | \
+		( ((unsigned char)(r * 255.0f) ) << 16 ) | \
+		( ((unsigned char)(g * 255.0f) ) << 8 ) |\
+		( ((unsigned char)(b * 255.0f) ) << 0 ))
+
 
 static inline unsigned int pv_float_to_bits(float f) {
 	union { unsigned int i; float f; } un;
@@ -129,12 +134,42 @@ static inline pvr_uv16 pv_pack_uv16_static(float u, float v) {
 //Designed for fast runtime speed
 static inline pvr_uv16 pv_pack_uv16_dynamic(float u, float v) {
 	unsigned int ui = pv_float_to_bits(u) >> 16, vi = pv_float_to_bits(v);
-	asm( "xtrct	%1,%0\n\t" : "=r" (vi) : "r" ( ui),"0" (vi) );
+	__asm__( "xtrct	%1,%0\n\t" : "=r" (vi) : "r" ( ui),"0" (vi) );
 	return vi;
 }
 
 #define PV_CMD_VERTEX		(0xE0000000)
-#define PV_CMD_VERTEX_EOS	(0xF0000000)
+//#define PV_CMD_VERTEX_EOS	(0xF0000000)
+#define PV_CMD_VERTEX_EOS	(0xFFFFFFFF)
+
+#define pv_ftrv3(x, y, z) { \
+	register float __x __asm__("fr8") = (x); \
+	register float __y __asm__("fr9") = (y); \
+	register float __z __asm__("fr10") = (z); \
+	register float __w __asm__("fr11") = 1.0f; \
+	__asm__ __volatile__( \
+		"ftrv   xmtrx,fv8\n" \
+		: "=f" (__x), "=f" (__y), "=f" (__z), "=f" (__w) \
+		: "0" (__x), "1" (__y), "2" (__z), "3" (__w) ); \
+	x = __x; y = __y; z = __z; \
+}
+#define pv_ftrv4(x, y, z, w) { \
+	register float __x __asm__("fr8") = (x); \
+	register float __y __asm__("fr9") = (y); \
+	register float __z __asm__("fr10") = (z); \
+	register float __w __asm__("fr11") = (w); \
+	__asm__ __volatile__( \
+		"ftrv   xmtrx,fv8\n" \
+		: "=f" (__x), "=f" (__y), "=f" (__z), "=f" (__w) \
+		: "0" (__x), "1" (__y), "2" (__z), "3" (__w) ); \
+	x = __x; y = __y; z = __z; w = __w; \
+}
+
+//~ #define pv_pref(addr) __builtin_prefetch(addr)
+static inline void pv_pref(void *addr) {
+	__asm__ __volatile__("pref @%0" : : "r" (addr) : "memory");
+}
+
 
 /*
 	setr -> set struct reference
@@ -146,6 +181,8 @@ static inline pvr_uv16 pv_pack_uv16_dynamic(float u, float v) {
 	vertex_eos -> ta command set to last vertex of strip
 	
 	pos -> vertex position
+	pos_trfm -> vertex position /w matrix transform and divide by w (vertex z is 1/w)
+	pos_trfm_2d -> vertex position /w matrix transform (no perspective div) (vertex z is z)
 	
 	(no/outside modifier):
 	uv -> 32bit floating point tex coords
@@ -173,7 +210,7 @@ static inline pvr_uv16 pv_pack_uv16_dynamic(float u, float v) {
 //pvr_vertex32, pvr_vertex32m, pvr_vertex32f, pvr_vertex64f, pvr_vertex64m, pvr_vertex64s
 #define pv_setr_cmd(v, vcmd) do { v.cmd = (vcmd); } while(0)
 #define pv_set_cmd(v, vcmd) do { v->cmd = (vcmd); } while(0)
-#define pv_set_submit_cmd(v, vcmd) do { v->cmd = (vcmd);  sqSubmit32(v); } while(0)
+#define pv_set_submit_cmd(v, vcmd) do { v->cmd = (vcmd);  pv_pref(v); } while(0)
 
 #define pv_setr_cmd_vertex_eos(v) pv_setr_cmd(v, PV_CMD_VERTEX_EOS)
 #define pv_set_cmd_vertex_eos(v) pv_set_cmd(v, PV_CMD_VERTEX_EOS)
@@ -186,6 +223,34 @@ static inline pvr_uv16 pv_pack_uv16_dynamic(float u, float v) {
 
 #define pv_setr_pos(v, xp, yp, zp)  do { v.z = (zp); v.y = (yp); v.x = (xp); } while(0)
 #define pv_set_pos(v, xp, yp, zp)  do { v->z = (zp); v->y = (yp); v->x = (xp); } while(0)
+
+#define pv_setr_pos_trfm(v, xp, yp, zp) \
+	do { \
+		float _xp = (xp), _yp = (yp), _zp = (zp), _w = 1.0f; \
+		pv_ftrv4(_xp, _yp, _zp, _w); \
+		_w = 1.0f / _w; \
+		v.z = (_w); v.y = (_yp * _w); v.x = (_xp * _w); \
+	} while(0)
+#define pv_set_pos_trfm(v, xp, yp, zp) \
+	do { \
+		float _xp = (xp), _yp = (yp), _zp = (zp), _w = 1.0f; \
+		pv_ftrv4(_xp, _yp, _zp, _w); \
+		_w = 1.0f / _w; \
+		v->z = (_w); v->y = (_yp * _w); v->x = (_xp * _w); \
+	} while(0)
+
+#define pv_setr_pos_trfm_2d(v, xp, yp, zp) \
+	do { \
+		float _xp = (xp), _yp = (yp), _zp = (zp) \
+		pv_ftrv3(_xp, _yp, _zp); \
+		v.z = (_zp); v.y = (_yp); v.x = (_xp); \
+	} while(0)
+#define pv_set_pos_trfm_2d(v, xp, yp, zp) \
+	do { \
+		float _xp = (xp), _yp = (yp), _zp = (zp); \
+		pv_ftrv3(_xp, _yp, _zp); \
+		v->z = (_zp); v->y = (_yp); v->x = (_xp); \
+	} while(0)
 
 //pvr_vertex32, pvr_vertex64f, pvr_vertex64m (outside modifier)
 #define pv_setr_uv(vert, tu, tv)  do { vert.v = (tv); vert.u = (tu); } while(0)
@@ -212,6 +277,8 @@ static inline pvr_uv16 pv_pack_uv16_dynamic(float u, float v) {
 //pvr_vertex32f, pvr_vertex64f
 #define pv_setr_argbf(v, af, rf, gf, bf)  do { v.a = (af); v.r = (rf); v.g = (gf); v.b = (bf);  } while(0)
 #define pv_set_argbf(v, af, rf, gf, bf)  do { v->a = (af); v->r = (rf); v->g = (gf); v->b = (bf);  } while(0)
+#define pv_setr_rgbf(v, rf, gf, bf)  do { v.a = 1; v.r = (rf); v.g = (gf); v.b = (bf);  } while(0)
+#define pv_set_rgbf(v, rf, gf, bf)  do { v->a = 1; v->r = (rf); v->g = (gf); v->b = (bf);  } while(0)
 
 //pvr_vertex64f
 #define pv_setr_argbof(v, af, rf, gf, bf)  do { v.ao = (af); v.ro = (rf); v.go = (gf); v.bo = (bf);  } while(0)
@@ -245,7 +312,7 @@ static inline pvr_uv16 pv_pack_uv16_dynamic(float u, float v) {
 #define pv_set_pos1(v, xp, yp, zp)  do { v->x1 = (xp); v->y1 = (yp); v->z1 = (zp); } while(0)
 #define pv_setr_pos2(v, xp, yp, zp)  do { v.x2 = (xp); v.y2 = (yp); v.z2 = (zp); } while(0)
 #define pv_set_pos2(v, xp, yp, zp)  do { v->x2 = (xp); v->y2 = (yp); v->z2 = (zp); } while(0)
-#define pv_set_submit_pos2(v, xp, yp, zp)  do { v->x2 = (xp); sqSubmit64A(v); v->y2 = (yp); v->z2 = (zp); } while(0)
+#define pv_set_submit_pos2(v, xp, yp, zp)  do { v->x2 = (xp); pv_pref(v); v->y2 = (yp); v->z2 = (zp); } while(0)
 
 //pvr_vertex64s (sprite only)
 #define pv_setr_pos3(v, xp, yp, zp)  do { v.x3 = (xp); v.y3 = (yp); } while(0)
@@ -317,3 +384,5 @@ static inline pvr_uv16 pv_pack_uv16_dynamic(float u, float v) {
 #define pv_set_uv16_1(v, tuv)  do { v->uv1 = (tuv); } while(0)
 #define pv_setr_uv16_2(v, tuv)  do { v.uv2 = (tuv); } while(0)
 #define pv_set_uv16_2(v, tuv)  do { v->uv2 = (tuv); } while(0)
+
+#endif

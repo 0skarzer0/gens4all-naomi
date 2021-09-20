@@ -1,4 +1,8 @@
 
+#define IS_CONTROLLER_TYPE_6PAD(type)	((type) & 0x1)
+#define IS_CONTROLLER_TYPE_3PAD(type)	(!((type) & 0x1))
+#define IS_CONTROLLER_TYPE_TEAMPLAYER(type)	((type) & 0x10)
+
 extern unsigned int Controller_1_Type;
 extern unsigned int Controller_1_State;
 extern unsigned int Controller_1_COM;
