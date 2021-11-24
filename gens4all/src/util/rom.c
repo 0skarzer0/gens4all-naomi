@@ -400,6 +400,20 @@ int Get_Rom (char *rom_file)
 
 	Update_Recent_Rom (Name);
 	Update_Rom_Dir (Name);
+	
+	//Display loading message
+/*	read_cont();
+	pvr_wait_ready();
+	pvr_scene_begin();
+	pvr_list_begin(PVR_LIST_TR_POLY);
+	puts_center(font, 120 - font->lineheight/2, "Now loading...");
+	//~ puts_center(font, 240 + font->lineheight, dir);
+	//~ BMFprintf(font, 50, 240 - font->lineheight, 1, "Getting listing of\n%s", dir);
+	pvr_list_finish();
+	pvr_scene_finish();
+	pvr_wait_ready();
+	vid_waitvbl(); */
+	
 
 	printf("Loading rom %s... ", Name);
 	fflush(stdout);

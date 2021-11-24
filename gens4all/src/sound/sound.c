@@ -40,7 +40,7 @@ static int audio_len = 0;
 unsigned char *audiobuf = 0;
 extern int over_time;
 
-#define soundrecbytes	(512*1024)
+#define soundrecbytes	(128*1024)
 char soundrec[soundrecbytes];
 int soundrecpos;
 int soundrecenabled = 0;
@@ -49,6 +49,7 @@ int soundrecenabled = 0;
 void
 proc (void *user, Uint8 * buffer, int len)
 {
+	prof_start(PROF_YMH);
 	user=audiobuf;
 	if(!user) {
 		memset(buffer,len,0);
@@ -91,6 +92,7 @@ proc (void *user, Uint8 * buffer, int len)
 		printf("Rec over\n"); fflush(stdout);
 		soundrecenabled = 0;
 	}
+	prof_end(PROF_YMH);
 }
 
 #define AICA_BUF_SIZE	(8192)
@@ -572,6 +574,9 @@ static void Dump_Sound_Mono (short *Dest, const int length)
 
 int Write_Sound_Buffer (void *Dump_Buf)
 {
+	if (!Sound_Enable)
+		return;
+	prof_start(PROF_YMH);
 	//~ if (audio_len > (1880*2)) {
 	//~ if (audio_len > (2500*2)) {
 	if (!Use_SDL_Audio) {
@@ -583,7 +588,7 @@ int Write_Sound_Buffer (void *Dump_Buf)
 			} else {
 				printf("o");
 			}
-			return 0;
+			goto ret0;
 		}
 		if (0 && audio_len > (2000*2)) {
 			AICA_CMDSTR_CHANNEL(tmp, cmd, chan);
@@ -623,11 +628,13 @@ int Write_Sound_Buffer (void *Dump_Buf)
 			
 			snd_sh4_to_aica_start();
 		}
-		return 1;
+		goto ret1;
+		//~ return 1;
 	} else {
 		if (audio_len > (3000*2)) {
 			//~ printf("Too full\n"); fflush(stdout);
-			return 0;	//Does anything use this return value?
+			goto ret0;
+			//~ return 0;	//Does anything use this return value?
 		}
 	}
 	
@@ -662,8 +669,12 @@ int Write_Sound_Buffer (void *Dump_Buf)
 	else
 		over_time=0;
 */
-
+ret1:
+	prof_end(PROF_YMH);
 	return 1;
+ret0:
+	prof_end(PROF_YMH);
+	return 0;
 }
 
 

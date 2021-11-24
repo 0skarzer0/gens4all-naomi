@@ -75,7 +75,7 @@ static int CompareKerns(const void* key, const void* elem) {
 	return k->lastcp==e->lastcp ? k->curcp-e->curcp : k->lastcp-e->lastcp;
 }
 
-static const struct BMFCharacter * BMFFindCharacter(const struct BMFFont *font, int codepoint) {
+const struct BMFCharacter * BMFFindCharacter(const struct BMFFont *font, int codepoint) {
 	assert(font);
 	return bsearch((void*)codepoint, font->chars, font->charcnt,
 		sizeof(*font->chars), CompareChars);
@@ -498,7 +498,8 @@ float BMFStringWidth(const struct BMFFont *font, BMFStringReader sr, const char 
 	
 	returns number of sprites gnerated
 */
-int BMFputsmem(const struct BMFFont *font, float x, float y, float z, BMFStringReader sr, const char *str, size_t strlength, struct BMFSprite *dst) {
+
+int BMFcputsmem(const struct BMFFont *font, float x, float y, float z, int color, BMFStringReader sr, const char *str, size_t strlength, struct BMFSprite *dst) {
 	if (strlength == 0)
 		return 0;	
 	
@@ -545,7 +546,7 @@ int BMFputsmem(const struct BMFFont *font, float x, float y, float z, BMFStringR
 		//Don't bother drawing spaces
 		if (cp != ' ') {
 			BMFDrawSpriteTexturedTo(x + c->xofs, y + c->yofs, z, c->w,
-				c->h, c->topleftuv, c->bottomrightuv, -1, 0,
+				c->h, c->topleftuv, c->bottomrightuv, color, 0,
 				&font->pages[c->page].sprcxt, dst);
 			dst++;
 			spritecnt++;
@@ -557,13 +558,19 @@ int BMFputsmem(const struct BMFFont *font, float x, float y, float z, BMFStringR
 	
 	return spritecnt;
 }
-
+int BMFputsmem(const struct BMFFont *font, float x, float y, float z, BMFStringReader sr, const char *str, size_t strlength, struct BMFSprite *dst) {
+	return BMFcputsmem(font, x, y, z, -1, sr, str, strlength, dst);
+}
 static inline void TargetTA() {
 	sqSetTargetAddress((void*)PVR_TA_INPUT);
 }
 void BMFputs(const struct BMFFont *font, float x, float y, float z, BMFStringReader sr, const char *str) {
 	TargetTA();
 	BMFputsmem(font, x, y, z, sr, str, BMF_NO_LIMIT, sqGetWritePointer((struct BMFSprite*)PVR_TA_INPUT));
+}
+void BMFcputs(const struct BMFFont *font, float x, float y, float z, int color, BMFStringReader sr, const char *str) {
+	TargetTA();
+	BMFcputsmem(font, x, y, z, color, sr, str, BMF_NO_LIMIT, sqGetWritePointer((struct BMFSprite*)PVR_TA_INPUT));
 }
 
 void BMFvprintfmem(const struct BMFFont *font, float x, float y, float z, struct BMFSprite *dst, const char *fmt, va_list args) {

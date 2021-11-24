@@ -80,6 +80,8 @@ int BMFFindCodepoint(BMFStringReader sr, const char *str, int searchcodepoint, c
 */
 float BMFStringWidth(const struct BMFFont *font, BMFStringReader sr, const char *str, size_t lengthcodepoints);
 
+const struct BMFCharacter * BMFFindCharacter(const struct BMFFont *font, int codepoint);
+
 /*
 	strlength is length of str in codepoints. Used to limit ammount to a substring
 	
@@ -87,8 +89,10 @@ float BMFStringWidth(const struct BMFFont *font, BMFStringReader sr, const char 
 	
 	can write to memory or store queue
 */
+int BMFcputsmem(const struct BMFFont *font, float x, float y, float z, int color, BMFStringReader sr, const char *str, size_t strlength, struct BMFSprite *dst);
 int BMFputsmem(const struct BMFFont *font, float x, float y, float z, BMFStringReader sr, const char *str, size_t strlength, struct BMFSprite *dst);
 
+void BMFcputs(const struct BMFFont *font, float x, float y, float z, int color, BMFStringReader sr, const char *str);
 void BMFputs(const struct BMFFont *font, float x, float y, float z, BMFStringReader sr, const char *str);
 
 //The following all assume ASCII encoding

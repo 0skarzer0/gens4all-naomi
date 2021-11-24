@@ -678,6 +678,7 @@ INLINE void M68K_Reset_CPU ()
 }
 #endif
 
+#if !INLINE68K
 void M68K_Exec(int cycles)
 {
 	prof_start(PROF_M68K);
@@ -711,6 +712,7 @@ void M68K_Exec(int cycles)
 #endif
 	prof_end(PROF_M68K);
 }
+#endif
 
 #if 0
 INLINE void M68K_Interrupt(int level)

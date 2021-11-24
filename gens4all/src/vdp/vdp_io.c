@@ -79,12 +79,12 @@ extern unsigned char *Rom_Data; //[6 * 1024 * 1024];
 extern unsigned int Rom_Size;
 extern u16 Cell_Conv_Tab[64 * 1024];
 extern unsigned short MD_Palette[256];
-extern unsigned short MD_Screen[336 * 240];
+//extern unsigned short MD_Screen[336 * 240];
 //extern Sprite_Struct
 extern int Sprite_Struct [0x100 * 8];
 extern int Sprite_Visible[0x100];
-extern int CPL_M68K;
-extern int Cycles_M68K;
+//~ extern int CPL_M68K;
+//~ extern int Cycles_M68K;
 
 #ifdef FAME
 #if defined(WIN32) || defined(DREAMCAST) || defined(FAMEC)
@@ -152,7 +152,7 @@ u8 CRam[256];
 u32 VSRam_Over[8+30];	//Was just 8, but "VSRam_Over[28] = 8" below would write past the end of this array
 u8 VSRam[256];
 u8 H_Counter_Table[512 * 2];
-struct Reg_VDP_Type VDP_Reg;
+
 
 
 u32 ScrA_Addr;
@@ -178,24 +178,32 @@ u32 Win_Y_Pos;
 struct Ctrl_VDP_Type Ctrl;
 
 int DMAT_Tmp;
-int DMAT_Lenght;
 int DMAT_Type;
-
+#if 0
+int DMAT_Lenght;
+struct Reg_VDP_Type VDP_Reg;
 int VDP_Status;
 int VDP_Int;
 int VDP_Current_Line;
 int VDP_Num_Lines;
 int VDP_Num_Vis_Lines;
+#else
+struct VDPStat VDPStats;
+#endif
 int CRam_Flag;
 int VRam_Flag;
 
+struct Reg_VDP_Type __attribute__ ((aligned (32))) Raster_VDPRegs[MAX_REGISTER_RASTERS];
+VDP_Sprite __attribute__ ((aligned (32))) Raster_Sprites[MAX_SPRITE_RASTERS][MAX_SPRITES];
+RasterData __attribute__ ((aligned (32))) Raster_Data[256];
+
 int Raster_ColorSplit;
 int Raster_ColorSplitLine = 1<<17;
-char Raster_Lines[256];
-char Raster_BgColor[256*2];
-u8 Raster_VSRam[256];
-u8 Raster0_CRam[256];
-u8 Raster1_CRam[256];
+int Raster_SpriteSplitLine = 224;
+char __attribute__ ((aligned (32))) Raster_Lines[257];
+short __attribute__ ((aligned (32))) Raster_BgColor[256*2];
+u8 __attribute__ ((aligned (32))) Raster0_CRam[256];
+u8 __attribute__ ((aligned (32))) Raster1_CRam[256];
 
 INLINE void vdp_no_dma(void)
 {
@@ -289,8 +297,10 @@ static void vdp_process_dma(u32 vdp_cd_info)
 						u32 sprstart = Spr_Addr - (u32)VRam;
 						u32 sprend = sprstart + (H_Cell == 32 ? 64*4 : 80*4);
 						u32 dmaend = dst + len * dst_step;
-						if (sprstart < dmaend && dst < sprend)
+						if (sprstart < dmaend && dst < sprend) {
 							Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SPRLIST_CHANGE;
+							Raster_SpriteSplitLine = VDP_Current_Line;
+						}
 					}
 
 					for(i=0;i<len;i++)
@@ -319,6 +329,11 @@ static void vdp_process_dma(u32 vdp_cd_info)
 						dst += dst_step;
 					}
 					Raster_Lines[VDP_Current_Line] |= RASTER_LINE_COLOR_CHANGE;
+					if (!Raster_ColorSplit) {
+						Raster_ColorSplit = 1;
+						Raster_ColorSplitLine = VDP_Current_Line;
+						//~ memcpy(Raster1_CRam, CRam, sizeof(Raster1_CRam));
+					}
 					break;
 
 				case 0x3: /* VSRAM */
@@ -332,8 +347,13 @@ static void vdp_process_dma(u32 vdp_cd_info)
 						*(u16 *)(&VSRam[dst & 0x7E]) = data;
 						dst += dst_step;
 					}
-					//~ VSRam_Line_Dirty = 1;
-					Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCROLL_CHANGE;
+					
+					//Updating one or both?
+					if (dst_step == 2) {
+						Raster_Lines[VDP_Current_Line] |= (dst & 0x2) ? RASTER_LINE_VSCROLLB_CHANGE : RASTER_LINE_VSCROLLA_CHANGE;
+					} else {
+						Raster_Lines[VDP_Current_Line] |= RASTER_LINE_VSCROLLA_CHANGE | RASTER_LINE_VSCROLLB_CHANGE;
+					}
 					break;
 			}
 
@@ -368,10 +388,10 @@ void Reset_VDP(void)
 	int i;
 
 	// MD screen
-	for(i=0;i<(336 * 240);i++)
+	/*for(i=0;i<(336 * 240);i++)
 	{
 		MD_Screen[i] = 0;
-	}
+	}*/
 
 	// VRAM
 	for(i=0;i<(64 * 1024);i++)
@@ -570,7 +590,7 @@ u8 Read_VDP_H_Counter(void)
 
 	return H_Counter_Table[tbl_idx];
 }
-
+#if 1
 u8 Read_VDP_V_Counter(void)
 {
 	u32 tbl_idx = (M68K_GetCyclesDone() - Cycles_M68K - CPL_M68K) & 0x1FF;
@@ -621,6 +641,17 @@ u8 Read_VDP_V_Counter(void)
 
 	return res & 0xFF;
 }
+#else
+u8 Read_VDP_V_Counter(void)
+{
+	int l = VDP_Current_Line;
+	if (l >= 0xEB)
+		{
+			l -= 6;
+		}
+	return l & 0xff;
+}
+#endif
 
 void Write_Byte_VDP_Data(u8 Data)
 {
@@ -683,15 +714,16 @@ void Write_Word_VDP_Data(u16 Data)
 		case 0x8: return; /* write access (wrong) */
 
 		case 0x9: /* VRAM write access */
-			//TODO Detect if writing to sprite table here:
 			//Detect if writing to sprite table here:
 			if (1) {
 				u32 sprstart = Spr_Addr - (u32)VRam;
 				u32 sprend = sprstart + (H_Cell == 32 ? 64*4 : 80*4);
-				if (Ctrl.Address >= sprstart && Ctrl.Address < sprend)
+				if (Ctrl.Address >= sprstart && Ctrl.Address < sprend) {
 					Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SPRLIST_CHANGE;
+					Raster_SpriteSplitLine = VDP_Current_Line;
+				}
 			}
-			VRam_Flag = 1;
+			//VRam_Flag = 1;
 			if (Ctrl.Address & 1)
 			{
 				Data = ((Data & 0xFF) << 8) | ((Data & 0xFF00) >> 8);
@@ -700,16 +732,22 @@ void Write_Word_VDP_Data(u16 Data)
 			break;
 
 		case 0xA: /* CRAM write access */
-			CRam_Flag = 1;
+			//CRam_Flag = 1;
 			((u16 *)CRam)[(Ctrl.Address & 0x7F) >> 1] = Data;
 			//Don't bother creating a raster for bg color changes, since we handle those in Do_Genesis_Frame
-			if (((Ctrl.Address & 0x7F) >> 1) != VDP_Reg.BG_Color)
+			if (((Ctrl.Address & 0x7F) >> 1) != VDP_Reg.BG_Color) {
 				Raster_Lines[VDP_Current_Line] |= RASTER_LINE_COLOR_CHANGE;
+				if (!Raster_ColorSplit) {
+					Raster_ColorSplit = 1;
+					Raster_ColorSplitLine = VDP_Current_Line;
+					//~ memcpy(Raster1_CRam, CRam, sizeof(Raster1_CRam));
+				}
+			}
 			break;
 
 		case 0xB: /* VSRAM write access */
 			((u16 *)VSRam)[(Ctrl.Address & 0x7F) >> 1] = Data;
-			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCROLL_CHANGE;
+			Raster_Lines[VDP_Current_Line] |= (Ctrl.Address & 0x2) ? RASTER_LINE_VSCROLLB_CHANGE : RASTER_LINE_VSCROLLA_CHANGE;
 			break;
 
 		case 0xC:
@@ -735,29 +773,31 @@ int Set_VDP_Reg(int Num_Reg, int val)
 	}
 
 	val &= 0xFF;
+	VDP_Reg.r[Num_Reg] = val;
 
 	/* Doing some pointer caching and other actions */
 	switch(Num_Reg)
 	{
 		case VDP_SET1_REG:
-			VDP_Reg.Set1 = val;
+			//~ VDP_Reg.Set1 = val;
 			Update_IRQ_Line();
 			break;
 
 		case VDP_SET2_REG:
-			VDP_Reg.Set2 = val;
+			//~ VDP_Reg.Set2 = val;
 			Update_IRQ_Line();
 			break;
 
 		case VDP_SET3_REG:
-			VDP_Reg.Set3 = val;
+			//~ VDP_Reg.Set3 = val;
 			H_Scroll_Mask = H_Scroll_Mask_Table[val & 3];
 			V_Scroll_MMask = (val & 4)?0x7E:0;
-			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCROLL_CHANGE;
+			//TODO
+			//~ Raster_Lines[VDP_Current_Line] |= RASTER_LINE_VSCROLL_CHANGE;
 			break;
 
 		case VDP_SET4_REG:
-			VDP_Reg.Set4 = val;
+			//~ VDP_Reg.Set4 = val;
 			CRam_Flag = 1;
 			if (val & 0x81)
 			{
@@ -791,46 +831,48 @@ int Set_VDP_Reg(int Num_Reg, int val)
 			break;
 
 		case VDP_SCRA_REG:
-			VDP_Reg.Pat_ScrA_Adr = val;
+			//~ VDP_Reg.Pat_ScrA_Adr = val;
 			ScrA_Addr = ((val & 0x38) << 10) + (u32)VRam;
-			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCROLL_CHANGE | RASTER_LINE_MAPA_CHANGE;
+			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_MAPA_CHANGE;
 			break;
 
 		case VDP_WIN_REG:
-			VDP_Reg.Pat_Win_Adr = val;
+			//~ VDP_Reg.Pat_Win_Adr = val;
 			Win_Addr = ( ( val & (0x3C | ((VDP_Reg.Set4 & 0x1) << 1) ) ) << 10) + (u32)VRam;
 			break;
 
 		case VDP_SCRB_REG:
-			VDP_Reg.Pat_ScrB_Adr = val;
+			//~ VDP_Reg.Pat_ScrB_Adr = val;
 			ScrB_Addr = ((val & 0x7) << 13) + (u32)VRam;
-			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCROLL_CHANGE | RASTER_LINE_MAPB_CHANGE;
+			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_MAPB_CHANGE;
 			break;
 
 		case VDP_SPR_REG:
-			VDP_Reg.Spr_Att_Adr = val;
-			VRam_Flag |= 0x2;
+			//~ VDP_Reg.Spr_Att_Adr = val;
+			//~ VRam_Flag |= 0x2;
 			Spr_Addr = ((val & (0x7E | (VDP_Reg.Set4 & 0x1)) ) << 9) + (u32)VRam;
 			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SPRLIST_CHANGE;
+			Raster_SpriteSplitLine = VDP_Current_Line;
 			break;
 
 		case VDP_BGCOLOR_REG:
-			CRam_Flag = 1;
+			//~ CRam_Flag = 1;
 			VDP_Reg.BG_Color = val & 0x3F;
 			break;
 
 		case VDP_HINT_REG:
-			VDP_Reg.H_Int = val;
+			//~ VDP_Reg.H_Int = val;
 			break;
 
 		case VDP_HSCR_REG:
-			VDP_Reg.H_Scr_Adr = val;
+			//~ VDP_Reg.H_Scr_Adr = val;
 			H_Scroll_Addr = ((val & 0x3F) << 10) + (u32)VRam;
-			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_SCROLL_CHANGE;
+			//TODO
+			//~ Raster_Lines[VDP_Current_Line] |= RASTER_LINE_HSCROLL_CHANGE;
 			break;
 
 		case VDP_SCRSIZE_REG:
-			VDP_Reg.Scr_Size = val;
+			//~ VDP_Reg.Scr_Size = val;
 
 			switch (( (val & 0x30) | ((val & 0x3)<<2) ) >> 2)
 			{
@@ -877,6 +919,10 @@ int Set_VDP_Reg(int Num_Reg, int val)
 					break;
 			
 				case VDP_V32_H128:
+					//~ H_Scroll_CMul = 5;
+					//~ H_Scroll_CMask = 31;
+					//~ V_Scroll_CMask = 127;
+					//~ break;
 				case VDP_V64_H128:
 				case VDP_VXX_H128:
 				case VDP_V128_H128:
@@ -888,7 +934,7 @@ int Set_VDP_Reg(int Num_Reg, int val)
 			break;
 
 		case VDP_WINH_REG:
-			VDP_Reg.Win_H_Pos = val;
+			//~ VDP_Reg.Win_H_Pos = val;
 
 			val = (val & 0x1F) << 1;
 			val = (val < H_Cell)?val:H_Cell;
@@ -897,37 +943,37 @@ int Set_VDP_Reg(int Num_Reg, int val)
 			break;
 
 		case VDP_WINV_REG:
-			VDP_Reg.Win_V_Pos = val;
+			//~ VDP_Reg.Win_V_Pos = val;
 			Win_Y_Pos = val & 0x1F;
 			Raster_Lines[VDP_Current_Line] |= RASTER_LINE_WIN_CHANGE;
 			break;
 
 		case VDP_DMALENL_REG:
-			VDP_Reg.DMA_Lenght_L = val;
+			//~ VDP_Reg.DMA_Lenght_L = val;
 			VDP_Reg.DMA_Lenght = (VDP_Reg.DMA_Lenght & 0xFF00) | (val & 0xFF);
 			break;
 
 		case VDP_DMALENH_REG:
-			VDP_Reg.DMA_Lenght_H = val;
+			//~ VDP_Reg.DMA_Lenght_H = val;
 			VDP_Reg.DMA_Lenght = (VDP_Reg.DMA_Lenght & 0xFF) | ((val & 0xFF) << 8);
 			break;
 
 		case VDP_SRCL_REG:
-			VDP_Reg.DMA_Src_Adr_L = val;
+			//~ VDP_Reg.DMA_Src_Adr_L = val;
 			VDP_Reg.DMA_Address = (VDP_Reg.DMA_Address & 0xFFFF00) | val;
 			break;
 
 		case VDP_SRCM_REG:
-			VDP_Reg.DMA_Src_Adr_M = val;
+			//~ VDP_Reg.DMA_Src_Adr_M = val;
 			VDP_Reg.DMA_Address = (VDP_Reg.DMA_Address & 0xFF00FF) | (val << 8);
 			break;
 
 		case VDP_SRCH_REG:
-			VDP_Reg.DMA_Src_Adr_H = val;
+			//~ VDP_Reg.DMA_Src_Adr_H = val;
 			VDP_Reg.DMA_Address = (VDP_Reg.DMA_Address & 0xFFFF) | ((val & 0x7F) << 16);
 			Ctrl.DMA_Mode = val & 0xC0;
 			break;
-
+/*
 		case VDP_REG6:
 			VDP_Reg.Reg6 = val;
 			break;
@@ -942,7 +988,7 @@ int Set_VDP_Reg(int Num_Reg, int val)
 			break;
 		case VDP_AUTOINC_REG:
 			VDP_Reg.Auto_Inc = val;
-			break;
+			break;*/
 	}
 
 	return val;

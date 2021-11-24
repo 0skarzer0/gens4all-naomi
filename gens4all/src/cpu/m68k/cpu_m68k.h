@@ -38,8 +38,22 @@ void S68K_Reset();
 #define S68K_Reset_CPU() sub68k_reset()
 #endif
 
+#if INLINE68K
+#include "cpu/m68k/fame/fame.h"
+#include "profiler.h"
+static inline void M68K_Exec(int cycles)
+{
+	prof_start(PROF_M68K);
+	extern M68K_CONTEXT m68kcontext;
+	if ((cycles - m68kcontext.cycles_counter) > 0)
+		m68k_emulate(cycles - m68kcontext.cycles_counter);
 
+	prof_end(PROF_M68K);
+}
+#else
 void M68K_Exec(int cycles);
+#endif
+
 void M68K_32X_Mode();
 void M68K_Set_32X_Rom_Bank();
 void M68K_Set_Prg_Ram();

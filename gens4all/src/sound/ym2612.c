@@ -323,7 +323,7 @@ FILE *debug_file = NULL;
 
 extern unsigned int Sound_Extrapol[312][2];
 extern int Seg_L[882], Seg_R[882];
-extern int VDP_Current_Line;
+//~ extern int VDP_Current_Line;
 extern int GYM_Dumping;
 extern int YM2612_Enable;
 extern int DAC_Enable;
@@ -2467,6 +2467,9 @@ int YM2612_Write(unsigned char adr, unsigned char data)
 
 void YM2612_Update(int **buf, int length)
 {
+	//if (!Sound_Enable)
+		//return;
+	
   int i, j, algo_type;
 
   prof_start(PROF_YMH);

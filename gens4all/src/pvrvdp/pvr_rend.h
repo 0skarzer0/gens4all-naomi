@@ -18,9 +18,9 @@ typedef union {
 	struct {
 		int topleft, bottomright;
 	};
-	struct {
-		int top, left, bottom, right;
-	};
+	//~ struct {
+		//~ short top, left, bottom, right;
+	//~ };
 } PvrUV16;
 typedef struct {
 	char VDPPalette[VDP_PALETTE_CNT][PVR_CODEBOOK_SIZE];
@@ -44,7 +44,11 @@ extern pvr_context *CurPVRTilesCxt;
 extern pvr_context *CurPVRTilesCxtAlt;
 extern pvr_context *CurPVRTilesSprCxt;
 extern pvr_context *CurPVRTilesSprCxtAlt;
+extern pvr_context *CurPVRTilesCxtArr[PVRVDP_CRAST_CNT*2];
 extern pvr_ptr_t PVRTilesTexture[2];
+
+extern pvr_ptr_t PVRBGColorTexture[2];
+extern pvr_context __attribute__ ((aligned(32))) PVRBgColorCxt[2];
 
 extern void InitTileUVTable(void);
 extern void InitPVRTexture(void);
@@ -54,23 +58,6 @@ extern void DrawTile32PVR_Asm(int tile, void *sq, int color, float topx, float b
 typedef void (*DrawRow)(pvr_context *tex, short *tmrow, int layer, int line, int tileofs, float scry, float lowpriodepth, float hipriodepth);
 
 
-#ifdef VDP_HIRES
-#define TS 16.0f
-#define TSCA 2.0f
-
-#define TW 16.0f
-#define TH 16.0f
-#define TSW 2.0f
-#define TSH 2.0f
-#else
-#define TS 8.0f
-#define TSCA 1.0f
-
-#define TW 8.0f
-#define TH 8.0f
-#define TSW 1.0f
-#define TSH 1.0f
-#endif
 #if 1
 	#define DEPTH_LAYER_BG		(1.0f)
 	#define DEPTH_LAYER_B_LO	(2.0f)
@@ -100,6 +87,48 @@ extern float screen_start_x;
 #define SCREEN_START_Y	(8.0f)
 #endif
 
+typedef struct {
+	float width, height;
+	float scalew, scaleh;
+} VDPGeometry;
+
+extern VDPGeometry vdpgeo;
+
+typedef struct {
+	int force_cell;
+	
+} PVRRenderCfg;
+
+#if !VDP_STRETCH_256
+	#ifdef VDP_HIRES
+	#define TS 16.0f
+	#define TSCA 2.0f
+
+	#define TW 16.0f
+	#define TH 16.0f
+	#define TSW 2.0f
+	#define TSH 2.0f
+	#else
+	#define TS 8.0f
+	#define TSCA 1.0f
+
+	#define TW 8.0
+	#define TH 8.0
+	#define TSW 1.0
+	#define TSH 1.0
+	#endif
+#else
+	#define TS 8.0
+	#define TSCA 1.0
+
+	#define TW vdpgeo.width
+	#define TH 8.0
+	#define TSW vdpgeo.scalew
+	#define TSH 1.0
+#endif
+
+;
+
 void * draw_rect(float x0, float y0, float x1, float y1, float z, unsigned int argb, void *dst);
 void DrawVRAMPVRManual(float scrx, float scry, float depth);
 void DrawMapsPVR();
@@ -113,5 +142,26 @@ void * draw_rect_wh(float x, float y, float w, float h, float z, unsigned int ar
 
 void PalToCodebook(short *src, short *dst);
 void purge_cache();
+
+
+
+
+void PalToCodebook4(short *src, short *dst);
+void VRAM8x8ToTexture2(void *src, void *dst);
+void VRAM8x16ToTexture(void *src, void *dst);
+
+enum {
+	MAP_DRAW_SPLIT2,
+	MAP_DRAW_SPLIT2_CELL,
+	MAP_DRAW_SPLIT4,
+	MAP_DRAW_SPLIT4_CELL,
+};
+extern int MapADrawFuncId;
+extern int MapBDrawFuncId;
+extern void NDrawMapA();
+extern void NDrawMapB();
+extern void NDrawSpritesNR();
+extern void NDrawSpritesR();
+
 
 #endif

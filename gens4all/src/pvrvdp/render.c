@@ -15,8 +15,6 @@
 #define DrawTile32PVR(a...) DrawTile16PVR_C(a)
 //~ #define DrawTile32PVR(a...) DrawTile32PVR_Asm(a)
 
-extern struct Reg_VDP_Type VDP_Reg;
-
 float screen_start_x = 0;
 
 float ColorSplitScreen;	//Color split location in PVR screen space
@@ -308,6 +306,8 @@ void DrawTileSplitMid(int tile, void *sq, pvr_context *tex, int color, float top
 void DrawTile16Split(int tile, void *sq, int color, float topx, float bottomx, float y, float lowz, float hiz, float w, float h) {
 	PvrUV16 *uv;
 	
+		DrawTile16PreRaster(tile, sq, color, topx, bottomx, y, lowz, hiz, w, h);
+		return;
 	if (y+TS < ColorSplitScreen) {
 		//Completely over
 		DrawTile16PreRaster(tile, sq, color, topx, bottomx, y, lowz, hiz, w, h);
@@ -505,9 +505,10 @@ void DrawVRAMPVRManual(float scrx, float scry, float depth) {
 	void *pc = sqPrepare((void*)PVR_TA_INPUT);
 	for(y = 0; y < 32; y++) {
 		xf = scrx;
-		for(x = 0; x < 64; x++) {
+		for(x = 0; x < 32; x++) {
 			//DrawTile32PVR_C((y*64+x%64) | (testcolor<<(VDP_PALSHIFT-2)), pc, -1, xf, xf, yf, 0.5, 0.5, 8, 8);
-			DrawTile32PVR((y*64+x%64) | (testcolor<<(VDP_PALSHIFT-2)), pc, -1, xf, xf, yf, depth, depth, 8, 8);
+			//~ DrawTile32PVR(y*64+x, pc, -1, xf, xf, yf, depth, depth, 8, 8);
+			DrawTile16PreRaster(y*64+x, pc, -1, xf, xf, yf, depth, depth, TS, TS);
 			xf += 8.0f;
 		}
 		yf += 8.0f;
@@ -551,17 +552,21 @@ extern unsigned int H_Win_Mul;
 extern unsigned int Win_X_Pos;
 extern unsigned int Win_Y_Pos;
 
-short *vsram = (short*)&VSRam;
+static short *vsram = (short*)&VSRam;
 
 
 extern unsigned int H_Scroll_Addr;
 extern unsigned int H_Scroll_Mask;
-int GetHScroll(int line, int map) {
+static int GetHScroll(int line, int map) {
 	short *hscrolltable = (short*)H_Scroll_Addr;
 	return hscrolltable[(line & H_Scroll_Mask) * 2 + map];// & 0x3ff;
+	//~ short *hscrolltable = (short*)H_Scroll_Addr;
+	//~ extern int H_Scroll_Mask_Table[];
+	//~ int H_Scroll_Mask = H_Scroll_Mask_Table[Raster_Data[line].regs.Set3 & 3];
+	//~ return hscrolltable[(line & H_Scroll_Mask) * 2 + map];// & 0x3ff;
 }
 
-int signext(int val, int mask) {
+static int signext(int val, int mask) {
 	int signbit = (mask >> 1) ^ mask;
 	if (signbit & val)
 		return val | ~mask;
@@ -1441,17 +1446,17 @@ void DrawLayerCellPVR() {
 		yf += TS;
 	}
 }
-typedef struct {
-	short y;
-	char link, flags;
-	short tile;
-	short x;
-} VDPSprite;
-void DrawSprite(VDPSprite *spr, void *sq, float depth) {
+
+static void DrawSprite(VDP_Sprite *spr, void *sq, float depth) {
 	const int h = spr->flags & 0x3;
 	const int w = (spr->flags >> 2) & 0x3;
-	int x = (spr->x & 0x1ff) - 128 + screen_start_x;
-	int y = (spr->y & 0x1ff) - 128 + SCREEN_START_Y;
+	
+	int x = spr->x & 0x1ff;// - 128;// + screen_start_x;
+	int y = spr->y;// - 128;// + SCREEN_START_Y;
+	if (VDP_Reg.Set4 & 0x6)
+		y = (y & 0x3ff) / 2;
+	else
+		y = y & 0x1ff;
 	int tile = spr->tile;
 	int i, j;
 	if (y < -80)
@@ -1460,7 +1465,8 @@ void DrawSprite(VDPSprite *spr, void *sq, float depth) {
 		return;
 	x*=TSCA;
 	y*=TSCA;
-	
+	x += screen_start_x - 128;
+	y += SCREEN_START_Y - 128;
 	
 	if (tile & VDP_VFLIP) {
 		if (tile & VDP_HFLIP) {
@@ -1519,13 +1525,13 @@ void * draw_rect_wh(float x, float y, float w, float h, float z, unsigned int ar
 void DrawSprites() {
 	ColorSplitScreen = Raster_ColorSplitLine + SCREEN_START_Y;
 	
-	VDPSprite *sprlist = (VDPSprite*)Spr_Addr;
+	VDP_Sprite *sprlist = (VDP_Sprite*)Spr_Addr;
 	void *sq = sqPrepare((void*)PVR_TA_INPUT);
 	float depth = .90;
 	int i;
 	extern S32 H_Cell;	//screen width in tiles
 	int maxsprites = H_Cell == 32 ? 64 : 80;
-	VDPSprite *spr = sprlist;
+	VDP_Sprite *spr = sprlist;
 	for(i = 0; i < maxsprites; i++) {
 		DrawSprite(spr, sq, depth);
 		depth -= 0.01f;

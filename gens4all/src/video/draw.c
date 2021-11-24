@@ -127,11 +127,32 @@ int Init_Video_SubSystem(int w, int h, int flags)
 #endif
 
 	
-	if (1) {
+	if (VDP_STRETCH_256) {
+		vid_mode_t vm640x240 = {
+			DM_640x480,
+			640, 240,
+			VID_LINEDOUBLE,
+			
+			CT_VGA,
+			1,
+			
+			0x20C/2, 0x359,
+			0xAC, 0x28,
+			
+			0x15, 0x104,
+			
+			0x7E, 0x345,
+			0x24, 0x204,
+			0, 1,
+			{ 0, 0, 0, 0 }
+		};
+		vid_set_mode_ex(&vm640x240);
+	} else if (1) {
 		#ifndef VDP_HIRES
 			vid_init(DM_320x240, PM_RGB565);
 		#endif
-	} else {
+		
+	} else  {
 		vid_init(DM_320x240, PM_RGB888);
 	}
 //	vid_border_color(255, 0, 0);
@@ -144,10 +165,25 @@ int Init_Video_SubSystem(int w, int h, int flags)
 		0,
 		0, //sort
 	};
-	pvr_init(&pvr_params);
+	if (pvr_init(&pvr_params)) {
+		printf("Init error\n");
+		fflush(stdout);
+	}
 	pvr_set_bg_color(0,0,0.21);
 
 	PVR_GET(PVR_FB_CFG_2) &= ~0x8;	//disable dither
+	
+	//Speed up plunchthrough
+	//https://dcemulation.org/phpBB/viewtopic.php?t=102994&start=20#p1043868
+//	PVR_GET(PVR_UNK_0098) = 0x00801008;
+	//~ PVR_GET(0x011c) = 0x40;
+	
+	//~ PVR_GET(PVR_UNK_007c) = 0x0027df77;
+	//~ PVR_GET(PVR_UNK_007C) = 0x0027dfff;
+	//~ int v = 0x00200077;
+	//~ v |= 8 << 14;
+	//~ v |= 8 << 8;
+	//~ PVR_GET(PVR_UNK_007C) = v;
 	pvr_set_shadow_scale(1, 0.5);
 	
 	InitPVRTexture();
@@ -163,7 +199,14 @@ void Shutdown_Video_SubSystem(void)
 // CHUI: Are you crazy!?
 	SDL_QuitSubSystem (SDL_INIT_VIDEO);
 }
+#if 1
+int Flip (void)
+{
+	Blit_Dreamcast (0,0,0,0);
+	return 1;
+}
 
+#else
 int Flip (void)
 {
 #ifdef DEBUG_VDP
@@ -297,11 +340,11 @@ int Flip (void)
   prof_end(PROF_BLIT);
   return 1;
 }
-
+#endif
 
 int Update_Gens_Logo (void)
 {
-
+#if 0
 #ifndef DEBUG_VDP
   int i, j, m, n;
   static short tab[64000], Init = 0;
@@ -370,12 +413,14 @@ int Update_Gens_Logo (void)
 	Flip ();
 
 #endif
+#endif
 	return 1;
 }
 
 
 int Update_Crazy_Effect (void)
 {
+#if 0
   int i, j, offset;
   int r = 0, v = 0, b = 0, prev_l, prev_p;
   int RB, G;
@@ -481,7 +526,7 @@ int Update_Crazy_Effect (void)
     }
 
   Flip ();
-
+#endif
   return 1;
 }
 
@@ -516,7 +561,7 @@ int Update_Emulation (void)
     }
   else
     {
-      if (Sound_Enable)
+      if (1 && Sound_Enable)
 	{
 		Write_Sound_Buffer (NULL);
 		 if (0 && !Use_SDL_Audio) {

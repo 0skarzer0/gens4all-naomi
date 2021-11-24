@@ -22,8 +22,8 @@ static inline void sh4Nop() {
 ***********************************************************************/
 //Normal data prefetch
 static inline void sh4Prefetch(const void *addr) {
-	//__asm__ __volatile__("pref @%0" : : "r" (addr));
-	__builtin_prefetch(addr);
+	__asm__ __volatile__("pref @%0" : : "r" (addr));
+	//~ __builtin_prefetch(addr);
 }
 //Store queue submit "prefetch"
 static inline void sh4PrefetchMem(const void *addr) {

@@ -588,9 +588,10 @@ Change_Sound_Stereo (void)
 	  YM2612_Init (CLOCK_NTSC / 7, Sound_Rate, YM2612_Improv);
 	  PSG_Init (CLOCK_NTSC / 15, Sound_Rate);
 	}
-
+#ifdef SEGA_CD
       if (SegaCD_Started)
 	Set_Rate_PCM (Sound_Rate);
+#endif
       YM2612_Restore (Reg_1);
       PSG_Restore_State ();
 
@@ -647,9 +648,10 @@ Change_Sample_Rate (int Rate)
 	  YM2612_Init (CLOCK_NTSC / 7, Sound_Rate, YM2612_Improv);
 	  PSG_Init (CLOCK_NTSC / 15, Sound_Rate);
 	}
-
+#ifdef SEGA_CD
       if (SegaCD_Started)
 	Set_Rate_PCM (Sound_Rate);
+#endif
       YM2612_Restore (Reg_1);
       PSG_Restore_State ();
 
@@ -674,7 +676,9 @@ int Change_Sound (void)
       YM2612_Enable = 0;
       PSG_Enable = 0;
       DAC_Enable = 0;
+#ifdef SEGA_CD
       PCM_Enable = 0;
+#endif
 
 #ifdef SEGA_32X
       PWM_Enable = 0;
@@ -693,13 +697,13 @@ int Change_Sound (void)
 	  YM2612_Enable = 0;
 	  PSG_Enable = 0;
 	  DAC_Enable = 0;
-	  PCM_Enable = 0;
 
 #ifdef SEGA_32X
 	  PWM_Enable = 0;
 #endif
 
 #ifdef SEGA_CD
+	  PCM_Enable = 0;
 	  CDDA_Enable = 0;
 #endif
 
@@ -715,13 +719,13 @@ int Change_Sound (void)
       YM2612_Enable = 1;
       PSG_Enable = 1;
       DAC_Enable = 1;
-      PCM_Enable = 1;
 
 #ifdef SEGA_32X
       PWM_Enable = 1;
 #endif
     
 #ifdef SEGA_CD
+      PCM_Enable = 1;
       CDDA_Enable = 1;
 #endif
 
@@ -917,9 +921,11 @@ int Change_Country (int Num)
 	  YM2612_Init (CLOCK_NTSC / 7, Sound_Rate, YM2612_Improv);
 	  PSG_Init (CLOCK_NTSC / 15, Sound_Rate);
 	}
+#ifdef SEGA_CD
 
       if (SegaCD_Started)
 	Set_Rate_PCM (Sound_Rate);
+#endif
       YM2612_Restore (Reg_1);
       PSG_Restore_State ();
 

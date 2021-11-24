@@ -1,4 +1,4 @@
-#define ENABLE_SSG
+//#define ENABLE_SSG
 
 #define S0             0  /* Stupid typo of the YM2612 */
 #define S1             2
@@ -1400,7 +1400,7 @@ CONST_ENV_EVENT
 	DO_LIMIT
 .endm
 
-.macro DO_OUTPUT
+.macro DO_OUTPUT_AND_LOOP looppnt
 	//11 cycles
 	/*
 		buf[0][i] += CH->OUTd & CH->LEFT;
@@ -1426,29 +1426,39 @@ CONST_ENV_EVENT
 	and	tmp1, r0	//RIGHT: attenuate
 	
 	ST_SP	tmp2, LEFT_OFS	//LEFT: Update dst pointer
+	dt	length
 	
 	add	r0, sinmask	//RIGHT: Add channel to existing sound
+	bt/s	1f
 	
 	mov.l	sinmask, @sintab	//RIGHT: Update dst buffer
 	add	#4, sintab		//RIGHT: Increment dst pointer
 	
+	bra	\looppnt
+	 ST_SP	sintab, RIGHT_OFS	//RIGHT: Update dst pointer
+	
+1:
+	add	#4, sintab		//RIGHT: Increment dst pointer
 	ST_SP	sintab, RIGHT_OFS	//RIGHT: Update dst pointer
 .endm
 
 
 .macro S3_END_EARLY_OUT
-		mov.l	1f, r0
-		mov.w	2f, r1
+	//if(CH->SLOT[S3].Ecnt == ENV_END) return;
+	
+		mov.w	1f, r0
+		mov.l	2f, r1
 		mov.l	@(r0, channel), r0
 		cmp/eq	r0, r1
 		bf	3f
 		rts
 		 nop
-	.align 2
+	.align 3
 	2:
 		.long	ENV_END
 	1:
 		.word	CHANNEL_SLOT_S3_OFS + SLOT_Ecnt_OFS
+	.align	2
 	3:
 .endm
 
@@ -1465,13 +1475,14 @@ CONST_ENV_EVENT
 		bf	3f
 		rts
 		 nop
-	.align 2
+	.align 3
 	2:
 		.long	ENV_END
 	1:
 		.word	CHANNEL_SLOT_S1_OFS + SLOT_Ecnt_OFS
 	4:
 		.word	CHANNEL_SLOT_S3_OFS + SLOT_Ecnt_OFS
+	.align	2
 	3:
 .endm
 
@@ -1480,49 +1491,12 @@ CONST_ENV_EVENT
 		mov.w	1f, r0	//Slot1
 		mov.w	4f, r3	//Slot2
 		mov.w	5f, r7	//Slot3
-		mov.l	@(r0, channel), r0
-		mov	r3, r0
-		mov.l	@(r0, channel), r3
-		mov	r7, r0
-		mov.l	@(r0, channel), r7
-		
-		cmp/eq	r0, r1
-		bf	3f
-		cmp/eq	r3, r1
-		bf	3f
-		cmp/eq	r7, r1
-		bf	3f
-		
-		rts
-		 nop
-	.align 2
-	2:
-		.long	ENV_END
-	1:
-		.word	CHANNEL_SLOT_S1_OFS + SLOT_Ecnt_OFS
-	4:
-		.word	CHANNEL_SLOT_S2_OFS + SLOT_Ecnt_OFS
-	5:
-		.word	CHANNEL_SLOT_S3_OFS + SLOT_Ecnt_OFS
-	3:
-.endm
-
-.macro S0_S1_S2_S3_END_EARLY_OUT
-		mov.l	2f, r1	//Envend
-		mov.l	6f, r0	//Slot0
-		mov.l	1f, r2	//Slot1
-		mov.l	4f, r3	//Slot2
-		mov.l	5f, r7	//Slot3
-		mov.l	@(r0, channel), r0
-		mov	r2, r0
 		mov.l	@(r0, channel), r2
 		mov	r3, r0
 		mov.l	@(r0, channel), r3
 		mov	r7, r0
 		mov.l	@(r0, channel), r7
 		
-		cmp/eq	r0, r1
-		bf	3f
 		cmp/eq	r2, r1
 		bf	3f
 		cmp/eq	r3, r1
@@ -1532,17 +1506,57 @@ CONST_ENV_EVENT
 		
 		rts
 		 nop
-	.align 2
-	6:
-		.long	CHANNEL_SLOT_S0_OFS + SLOT_Ecnt_OFS
-	1:
-		.long	CHANNEL_SLOT_S1_OFS + SLOT_Ecnt_OFS
-	4:
-		.long	CHANNEL_SLOT_S2_OFS + SLOT_Ecnt_OFS
-	5:
-		.long	CHANNEL_SLOT_S3_OFS + SLOT_Ecnt_OFS
+	.align 4
 	2:
 		.long	ENV_END
+	1:
+		.word	CHANNEL_SLOT_S1_OFS + SLOT_Ecnt_OFS
+	4:
+		.word	CHANNEL_SLOT_S2_OFS + SLOT_Ecnt_OFS
+	5:
+		.word	CHANNEL_SLOT_S3_OFS + SLOT_Ecnt_OFS
+	.align	2
+	3:
+.endm
+
+.macro S0_S1_S2_S3_END_EARLY_OUT
+		mov.l	2f, r1	//Envend
+		
+		mov.w	6f, r0	//Slot0
+		mov.w	1f, r2	//Slot1
+		mov.l	@(r0, channel), r3
+		mov	r2, r0
+		mov.l	@(r0, channel), r7
+		cmp/eq	r3, r1
+		bf	3f
+		cmp/eq	r7, r1
+		bf	3f
+		
+		mov.w	4f, r0	//Slot2
+		mov.w	5f, r2	//Slot3
+		mov.l	@(r0, channel), r3
+		mov	r2, r0
+		mov.l	@(r0, channel), r7
+		cmp/eq	r3, r1
+		bf	3f
+		cmp/eq	r7, r1
+		bf	3f
+		
+		
+		rts
+		 nop
+	.align 4
+	6:
+		.word	CHANNEL_SLOT_S0_OFS + SLOT_Ecnt_OFS
+	1:
+		.word	CHANNEL_SLOT_S1_OFS + SLOT_Ecnt_OFS
+	4:
+		.word	CHANNEL_SLOT_S2_OFS + SLOT_Ecnt_OFS
+	5:
+		.word	CHANNEL_SLOT_S3_OFS + SLOT_Ecnt_OFS
+	2:
+		.long	ENV_END
+	.align	2
 	3:
 .endm
 
@@ -1599,6 +1613,7 @@ CONST_ENV_EVENT
 	 mov.l	@r15+, r8
 .endm
 
+.align 5
 .globl _Update_Chan_Algo0_Asm
 _Update_Chan_Algo0_Asm:
 		S3_END_EARLY_OUT
@@ -1613,10 +1628,7 @@ _Update_Chan_Algo0_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_0
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA0
+		DO_OUTPUT_AND_LOOP	.LUCA0
 		
 		RESTORE_REGISTERS_AND_RETURN
 	.align 5
@@ -1624,6 +1636,7 @@ _Update_Chan_Algo0_Asm:
 		CONST_ENV_EVENT
 		CONST_SIN_TABLE
 
+.align 5
 .globl _Update_Chan_Algo1_Asm
 _Update_Chan_Algo1_Asm:
 		S3_END_EARLY_OUT
@@ -1638,10 +1651,7 @@ _Update_Chan_Algo1_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_1
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA1
+		DO_OUTPUT_AND_LOOP	.LUCA1
 		
 		RESTORE_REGISTERS_AND_RETURN
 //too far	.align 5
@@ -1649,6 +1659,7 @@ _Update_Chan_Algo1_Asm:
 		CONST_ENV_EVENT
 		CONST_SIN_TABLE
 
+.align 5
 .globl _Update_Chan_Algo2_Asm
 _Update_Chan_Algo2_Asm:
 		S3_END_EARLY_OUT
@@ -1663,17 +1674,15 @@ _Update_Chan_Algo2_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_2
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA2
+		DO_OUTPUT_AND_LOOP	.LUCA2
 		
 		RESTORE_REGISTERS_AND_RETURN
 //too far	.align 5
 		CONST_ENV_TABLE
 		CONST_ENV_EVENT
 		CONST_SIN_TABLE
-		
+
+.align 5
 .globl _Update_Chan_Algo3_Asm
 _Update_Chan_Algo3_Asm:
 		S3_END_EARLY_OUT
@@ -1688,10 +1697,7 @@ _Update_Chan_Algo3_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_3
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA3
+		DO_OUTPUT_AND_LOOP	.LUCA3
 		
 		RESTORE_REGISTERS_AND_RETURN
 //too far	.align 5
@@ -1699,7 +1705,7 @@ _Update_Chan_Algo3_Asm:
 		CONST_ENV_EVENT
 		CONST_SIN_TABLE
 
-		
+.align 5
 .globl _Update_Chan_Algo4_Asm
 _Update_Chan_Algo4_Asm:
 		S1_S3_END_EARLY_OUT
@@ -1714,10 +1720,7 @@ _Update_Chan_Algo4_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_4
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA4
+		DO_OUTPUT_AND_LOOP	.LUCA4
 		
 		RESTORE_REGISTERS_AND_RETURN
 //too far	.align 5
@@ -1726,6 +1729,7 @@ _Update_Chan_Algo4_Asm:
 		CONST_SIN_TABLE
 		CONST_LIMIT
 
+.align 5
 .globl _Update_Chan_Algo5_Asm
 _Update_Chan_Algo5_Asm:
 		S1_S2_S3_END_EARLY_OUT
@@ -1740,10 +1744,7 @@ _Update_Chan_Algo5_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_5
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA5
+		DO_OUTPUT_AND_LOOP	.LUCA5
 		
 		RESTORE_REGISTERS_AND_RETURN
 //too far	.align 5
@@ -1752,6 +1753,7 @@ _Update_Chan_Algo5_Asm:
 		CONST_SIN_TABLE
 		CONST_LIMIT
 
+.align 5
 .globl _Update_Chan_Algo6_Asm
 _Update_Chan_Algo6_Asm:
 		//Streets of Rage BGM #6
@@ -1767,10 +1769,7 @@ _Update_Chan_Algo6_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_6
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA6
+		DO_OUTPUT_AND_LOOP	.LUCA6
 		
 		RESTORE_REGISTERS_AND_RETURN
 //	.align 5
@@ -1779,6 +1778,7 @@ _Update_Chan_Algo6_Asm:
 		CONST_SIN_TABLE
 		CONST_LIMIT
 
+.align 5
 .globl _Update_Chan_Algo7_Asm
 _Update_Chan_Algo7_Asm:
 		//Phantasy Star 2 title music
@@ -1794,10 +1794,7 @@ _Update_Chan_Algo7_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_7
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA7
+		DO_OUTPUT_AND_LOOP	.LUCA7
 		
 		RESTORE_REGISTERS_AND_RETURN
 //	.align 5
@@ -1820,10 +1817,7 @@ _Update_Chan_Algo0_LFO_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_0
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA0L
+		DO_OUTPUT_AND_LOOP	.LUCA0L
 		
 		RESTORE_REGISTERS_AND_RETURN
 	.align 5
@@ -1847,10 +1841,7 @@ _Update_Chan_Algo1_LFO_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_1
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA1L
+		DO_OUTPUT_AND_LOOP	.LUCA1L
 		
 		RESTORE_REGISTERS_AND_RETURN
 #ifndef ENABLE_SSG
@@ -1873,10 +1864,7 @@ _Update_Chan_Algo2_LFO_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_2
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA2L
+		DO_OUTPUT_AND_LOOP	.LUCA2L
 		
 		RESTORE_REGISTERS_AND_RETURN
 #ifndef ENABLE_SSG
@@ -1899,10 +1887,7 @@ _Update_Chan_Algo3_LFO_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_3
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA3L
+		DO_OUTPUT_AND_LOOP	.LUCA3L
 		
 		RESTORE_REGISTERS_AND_RETURN
 //	.align 5
@@ -1926,10 +1911,7 @@ _Update_Chan_Algo4_LFO_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_4
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA4L
+		DO_OUTPUT_AND_LOOP	.LUCA4L
 		
 		RESTORE_REGISTERS_AND_RETURN
 //too far	.align 5
@@ -1954,10 +1936,7 @@ _Update_Chan_Algo5_LFO_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_5
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA5L
+		DO_OUTPUT_AND_LOOP	.LUCA5L
 		
 		RESTORE_REGISTERS_AND_RETURN
 //too far	.align 5
@@ -1983,10 +1962,7 @@ _Update_Chan_Algo6_LFO_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_6
-		DO_OUTPUT
-		
-		dt	length
-		bf	.LUCA6L
+		DO_OUTPUT_AND_LOOP	.LUCA6L
 		
 		RESTORE_REGISTERS_AND_RETURN
 //	.align 5
@@ -2012,10 +1988,8 @@ _Update_Chan_Algo7_LFO_Asm:
 		UPDATE_ENV
 		LOAD_SINTAB_AND_SINMASK
 		DO_ALGO_7
-		DO_OUTPUT
+		DO_OUTPUT_AND_LOOP	.LUCA7L
 		
-		dt	length
-		bf	.LUCA7L
 		
 		RESTORE_REGISTERS_AND_RETURN
 //	.align 5

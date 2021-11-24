@@ -52,7 +52,7 @@ static inline void * sqPrepare(void *dst) {
 
 static inline void _sqSubmit32Offset(void *sq, int ofs) {
 	unsigned int p = (unsigned int)sq;
-	sh4PrefetchMem((void*)(p+ofs));
+	sh4Prefetch((void*)(p+ofs));
 }
 
 static inline void sqSubmit32(void *sq) {

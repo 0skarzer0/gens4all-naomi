@@ -10,6 +10,9 @@
 #include "misc.h"
 #include "util/SFont.h"
 #include "menu/menu.h"
+#include "pvrvdp/profile.h"
+#include "pvrvdp/watchdog.h"
+#include "gamelist.h"
 
 
 #include <dc/sound/sound.h>
@@ -54,7 +57,7 @@ int Resolution = 1;
 int Fast_Blur = 0;
 int Render_W = 0;
 int Render_FS = 0;
-int Show_FPS = 0;
+//~ int Show_FPS = 0;
 int Show_Message = 0;
 int Show_LED = 0;
 int FS_Minimised = 0;
@@ -75,10 +78,14 @@ int Gens_Running = 0;
 
 unsigned long long prof_last_frame_time[GENS4ALL_PROFILER_MAX];
 char *prof_msg[GENS4ALL_PROFILER_MAX];
+float last_frame_busy;
+float frame_busy_avrg;
+unsigned long long render_total_us = 16000;
 #ifdef PROFILER_GENS4ALL
 static unsigned prof_total_initial=0;
 unsigned prof_total=0;
 char *prof_msg[GENS4ALL_PROFILER_MAX];
+G4AProfiler g4a_profiler;
 unsigned long long prof_initial[GENS4ALL_PROFILER_MAX];	//microseconds
 unsigned long long prof_sum[GENS4ALL_PROFILER_MAX];
 unsigned long long prof_executed[GENS4ALL_PROFILER_MAX];
@@ -87,10 +94,12 @@ unsigned long long prof_peak_decay[GENS4ALL_PROFILER_MAX];
 int prof_started[GENS4ALL_PROFILER_MAX];
 int prof_frames;
 
+
 unsigned long long prof_frame_sum[GENS4ALL_PROFILER_MAX];
 
 long long last_frame_start_time_us = 0;
 long long last_frame_duration_us = 16000;
+
 
 void prof_reset(void)
 {
@@ -145,39 +154,48 @@ void prof_add(char *msg)
 
 void prof_show(void)
 {
-	dbg("Pro_show called");
 	int i;
+	//~ dbg("Pro_show called");
+	float totaltime = 0;
 	double toper=0;
 	unsigned long long to;
-	for(i=prof_total-1;i>=0;i--)
-		prof_end(i);
+//	for(i=prof_total-1;i>=0;i--)
+//		prof_end(i);
 	to=prof_sum[0];
-	puts("\n");
+	//~ puts("\n");
 	puts("--------------------------------------------");
 	for(i=0;i<prof_total;i++)
 	{
-		unsigned long long t0=prof_sum[i];
-		double percent=(double)t0;
-		percent*=100.0;
-		percent/=(double)to;
-		toper+=percent;
-#ifndef PROFILER_SDL
-		t0/=1000;
-#endif
-		float milliseconds = (float)t0;
-		
-		printf("%s: %.2f%% -> Ticks=%i ->",prof_msg[i],percent,((unsigned)t0));
-		if (prof_executed[i]>3000LL) {
-			printf("%.2fK times",(float)prof_executed[i]/1000.0f);
-			//printf("%iK times\n",(unsigned)(prof_executed[i]/1000LL));
+		if (0) {
+			unsigned long long t0=prof_sum[i];
+			double percent=(double)t0;
+			percent*=100.0;
+			percent/=(double)to;
+			toper+=percent;
+	#ifndef PROFILER_SDL
+			t0/=1000;
+	#endif
+			float milliseconds = (float)t0;
+			
+			printf("%s: %.2f%% -> Ticks=%i ->",prof_msg[i],percent,((unsigned)t0));
+			if (prof_executed[i]>3000LL) {
+				printf("%.2fK times",(float)prof_executed[i]/1000.0f);
+				//printf("%iK times\n",(unsigned)(prof_executed[i]/1000LL));
+			} else {
+				printf("%i times",(unsigned)(prof_executed[i]));
+			}
+			printf("  | %f ms per frame\n", milliseconds / prof_frames);
 		} else {
-			printf("%i times",(unsigned)(prof_executed[i]));
+			float timems = prof_last_frame_time[i] / 1000.0f;
+			totaltime += timems;
+			printf("%s: %.2f ms\n",prof_msg[i], timems);
 		}
-		printf("  | %f ms per frame\n", milliseconds / prof_frames);
+		
 	}
-
-	printf("TOTAL: %.2f%% -> Ticks=%i | frames %i\n",toper,to,prof_frames);
-	puts("--------------------------------------------"); fflush(stdout);
+	printf("Total: %f ms\n", totaltime);
+	printf("Total: %f ms (minus render) \n", totaltime-(prof_last_frame_time[PROF_VRENDER]+prof_last_frame_time[PROF_PVRWAIT])/1000.0f);
+	//~ printf("TOTAL: %.2f%% -> Ticks=%i | frames %i\n",toper,to,prof_frames);
+	puts("--------------------------------------------\n"); fflush(stdout);
 	
 	prof_reset();
 }
@@ -391,7 +409,7 @@ int update_SDL_events ()
 		}
 	      else if (!mod)
 		{
-		  Show_FPS = !Show_FPS;
+		  ShDEBUG_GENS4ALLow_FPS = !Show_FPS;
 		}
 	      break;
 
@@ -742,7 +760,7 @@ static int Build_Language_String (void)
 
 int Init (void)
 {
-	memset(MD_Screen, 0, 336 * 240 * 2);
+	//memset(MD_Screen, 0, 336 * 240 * 2);
 	if (SDL_Init(/*SDL_INIT_VIDEO|*/SDL_INIT_JOYSTICK|SDL_INIT_CDROM
 #ifndef NO_SOUND
 		| SDL_INIT_AUDIO
@@ -887,10 +905,15 @@ static void * watchdog(void *v) {
 	extern int raze_clock_counter;
 	
 	do {
-		thd_sleep(51);
+		thd_sleep(26);
+		
+		extern void pfSampRecordSample(void);
+		if (pfSampIsRunning())
+			pfSampRecordSample();
+		
 		if (!paused) {
 			sleeptime++;
-			if (sleeptime == 30) {
+			if (sleeptime == 60) {
 				printf("At PC: %08X, PR: %08X\n",(unsigned int)parentthd->context.pc,(unsigned int)parentthd->context.pr);
 				printf("Z80 Clock %i\n", raze_clock_counter);
 				int i;
@@ -901,7 +924,7 @@ static void * watchdog(void *v) {
 				}
 				printf("\n");
 			}
-			if (sleeptime > 100) {
+			if (sleeptime > 200) {
 				printf("At PC: %08X, PR: %08X\n",(unsigned int)parentthd->context.pc,(unsigned int)parentthd->context.pr);
 				printf("Z80 Clock %i\n", raze_clock_counter);
 				int i;
@@ -919,14 +942,17 @@ static void * watchdog(void *v) {
 void watchdog_pet()
 {
 	sleeptime = 0;
+	wdPet();
 }
 void watchdog_pause()
 {
 	paused = 1;
+	wdPause();
 }
 void watchdog_resume()
 {
 	paused = 0;
+	wdResume();
 }
 void watchdog_init()
 {
@@ -934,10 +960,13 @@ void watchdog_init()
 	dogthd = thd_create(0, &watchdog, NULL);
 }
 
+
+
+int Sonic_2_Auto_Render = 0;
 int Sonic_SMPS_Z80_Hack = 0;
 int Ristar_Hack = 0;
 int Force_Screen_On_Hack = 0;
-int Render_Point = 0;	//0 render at start of vblank, 1 render at end of vblank
+int Render_Point = 0;	//0 render at start of vblank, 1 render at end of vblank, 2 render at first screen off
 
 int main (int argc, char *argv[])
 {
@@ -990,12 +1019,12 @@ int main (int argc, char *argv[])
 	prof_add("Blit");           // PROF_BLIT
 	prof_add("VRender");        // PROF_VRENDER
 	prof_add("SRender");        // PROF_SRENDER
-	prof_add("R0");             // PROF_R0
-	prof_add("R1");             // PROF_R1
-	prof_add("R2");             // PROF_R2
-	prof_add("R3");             // PROF_R3
-	prof_add("R4");             // PROF_R4
-	prof_add("R5");             // PROF_R5
+	prof_add("MainLoop");       // PROF_MAINLOOP
+	prof_add("PVRWait");        // PROF_PVRWAIT
+	prof_add("PROF_MAPA");             // PROF_R2
+	prof_add("PROF_MAPB");             // PROF_R3
+	prof_add("PROF_SPR");             // PROF_R4
+	prof_add("PROF_TEX");             // PROF_R5
 	prof_add("R6");             // PROF_R6
 	prof_add("R7");             // PROF_R7
 #endif
@@ -1050,15 +1079,29 @@ int main (int argc, char *argv[])
 	
 	
 	watchdog_init();
+	wdInit();
+	pfSampInit(10000);
 	printf("CCR: %08x\n", *(int*)0xFF00001c);
-#ifndef SKIPLOADER
+	printf("RD: %i\n", sizeof(RasterData));
+	
+#if !SKIPLOADER
 	extern void run_loader();
 	run_loader();
 	return 0;
 #endif
 	
+	maple_device_t *contr = maple_enum_type(0, MAPLE_FUNC_CONTROLLER);
+	cont_state_t *cond = (cont_state_t *)maple_dev_status(contr);
+	printf("Funcs     %08x\n", contr->info.functions);
+	printf("FuncData0 %08x\n", contr->info.function_data[0]);
+	printf("FuncData1 %08x\n", contr->info.function_data[1]);
+	printf("FuncData2 %08x\n", contr->info.function_data[2]);
+	
+	//~ Controller_1_Type |= 0x10;
+	
 	#define ROMDIR "/pc/home/alex/Emu/Genesis/"
-	int runresult = run(ROMDIR"redzone.gen");
+	//~ int runresult = run(ROMDIR"tanglewd.bin");
+	int runresult = run(ROMDIR"sonic1.gen");
 	
 	if (Has_SRAM_Changed()) {
 		printf("SRAM changed\n");
@@ -1107,26 +1150,49 @@ int run(const char *rom_filename)
 	printf("Version: \"%.13s\"\n", Game->Version);
 	fflush(stdout);
 	
+	Sonic_2_Auto_Render = 0;
 	Sonic_SMPS_Z80_Hack = 0;
 	Ristar_Hack = 0;
 	Force_Screen_On_Hack = 0;
+	Render_Point = 0;
 	
-	if (strcmp(Game->Rom_Name, "SONIC THE HEDGEHOG 2 ") == 0) {
-		Sonic_SMPS_Z80_Hack = 1;
-	} else if (strcmp(Game->Rom_Name, "SONIC THE HEDGEHOG 3 ") == 0) {
-		Sonic_SMPS_Z80_Hack = 1;
-	} else if (strcmp(Game->Rom_Name, "SONIC & KNUCKLES ") == 0) {
-		Sonic_SMPS_Z80_Hack = 1;
-	} else if (strcmp(Game->Rom_Name, "- RISTAR - ") == 0) {
-		Ristar_Hack = 1;
-	} else if (strcmp(Game->Rom_Name, "- RISTAR THE SHOOTING STAR - ") == 0) {
-		Ristar_Hack = 1;
-	} else if (strcmp(Game->Rom_Name_W, "SONIC 3D FLICKIES' ISLAND ") == 0) {
-		Sonic_SMPS_Z80_Hack = 1;
-	} else if (strcmp(Game->Rom_Name_W, "GUNSTAR HEROES ") == 0) {
-		//~ Force_Screen_On_Hack = 1;
+	if (GLCurGame) {
+		printf("%08x\n", GLCurGame->Hacks);
+		if (GLCurGame->Hacks & (1<<GH_SONIC_Z80_HACK))
+			Sonic_SMPS_Z80_Hack = 1;
+		if (GLCurGame->Hacks & (1<<GH_RISTAR_HACK))
+			Ristar_Hack = 1;
+		if (GLCurGame->Hacks & (1<<GH_SCREEN_OFF_RENDER_HACK))
+			Render_Point = 2;
+		if (GLCurGame->Hacks & (1<<GH_SONIC2_AUTO_RENDER_HACK))
+			Sonic_2_Auto_Render = 1;
+	} else {
+		if (strcmp(Game->Rom_Name, "SONIC THE HEDGEHOG 2 ") == 0) {
+			Sonic_SMPS_Z80_Hack = 1;
+			Sonic_2_Auto_Render = 1;
+		} else if (strcmp(Game->Rom_Name, "SONIC THE HEDGEHOG 3 ") == 0) {
+			Sonic_SMPS_Z80_Hack = 1;
+		} else if (strcmp(Game->Rom_Name, "SONIC & KNUCKLES ") == 0) {
+			Sonic_SMPS_Z80_Hack = 1;
+		} else if (strcmp(Game->Rom_Name, "- RISTAR - ") == 0) {
+			Ristar_Hack = 1;
+		} else if (strcmp(Game->Rom_Name, "- RISTAR THE SHOOTING STAR - ") == 0) {
+			Ristar_Hack = 1;
+		} else if (strcmp(Game->Rom_Name_W, "SONIC 3D FLICKIES' ISLAND ") == 0) {
+			Sonic_SMPS_Z80_Hack = 1;
+		} else if (strcmp(Game->Rom_Name_W, "GUNSTAR HEROES ") == 0) {
+			
+		} else if (strcmp(Game->Rom_Name_W, "Landstalker ") == 0) {
+			Render_Point = 2;
+		} else if (strcmp(Game->Rom_Name_W, "Land Stalker ") == 0) {
+			Render_Point = 2;
+		}
 	}
 	
+	printf("Sonic Z80: %i\n", Sonic_SMPS_Z80_Hack);
+	printf("Sonic 2: %i\n", Sonic_2_Auto_Render);
+	printf("Ristar: %i\n", Ristar_Hack);
+	fflush(stdout);
 	chdir("/rd/");
 	emufont = BMFLoad("uroob.fnt", "vq");
 	

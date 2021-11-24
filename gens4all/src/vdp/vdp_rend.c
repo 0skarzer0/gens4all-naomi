@@ -46,9 +46,11 @@ extern S32 VRam_Flag;
 extern U8 CRam[256];
 extern S32 CRam_Flag;
 extern U8 VSRam[256];
+#if 0
 extern struct Reg_VDP_Type VDP_Reg;
 extern S32 VDP_Current_Line;
 extern S32 VDP_Status;
+#endif
 extern S32 H_Cell;
 extern U32 H_Win_Mul;
 extern S32 H_Pix;
@@ -80,7 +82,7 @@ U32 palette_number;
 U32 vdp_cur_line_pixel;     // VDP_Current_Line * 336
 U32 xoffset;
 
-U16 MD_Screen[336 * 240];
+//U16 MD_Screen[336 * 240];
 U16 MD_Palette[256];
 U16 Palette[4096];
 S32 Sprite_Struct [0x100 * 8];

@@ -38,9 +38,9 @@ _PalToCodebook4SH:
 		 mov.l	r0, @curcolor
 		
 		mov.l	.Lshadowval, r0
-		mov.l	r0, @(15*4, curcolor)
-		mov.l	.Llightval, r0
-		mov.l	r0, @(14*4, curcolor)
+		mov.l	.Llightval, r1
+		mov.l	r0, @(15*4, r15)
+		mov.l	r1, @(14*4, r15)
 		
 		//Write colors to codebook
 		mov	#8, r0

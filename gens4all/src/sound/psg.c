@@ -78,7 +78,7 @@ FILE *psg_debug_file = NULL;
 
 extern unsigned int Sound_Extrapol[312][2];
 extern int Seg_L[882], Seg_R[882];
-extern int VDP_Current_Line;
+//~ extern int VDP_Current_Line;
 extern int GYM_Dumping;
 
 //int Update_GYM_Dump (char v0, char v1, char v2);

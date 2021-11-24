@@ -9,6 +9,7 @@
 #include "cpu_m68k.h"
 #include "mem_z80.h"
 #include "cpu_z80.h"
+#include "vdp_io.h"
 #include "io.h"
 
 #ifdef RAZE
@@ -647,12 +648,14 @@ int Last_BUS_REQ_St;
 int Bank_M68K;
 int Bank_SH2;
 
-int CPL_M68K;
-int CPL_S68K;
-int CPL_Z80;
-int Cycles_M68K;
-int Cycles_S68K;
-int Cycles_Z80;
+//~ int CPL_M68K;
+//~ int CPL_S68K;
+//~ int CPL_Z80;
+//~ int Cycles_M68K;
+//~ int Cycles_S68K;
+//~ int Cycles_Z80;
+
+struct CPUCycles CycleData;
 
 u8 Fake_Fetch;
 
@@ -668,7 +671,7 @@ extern int Controller_2_COM;
 //extern Memory_Control_Status;
 */
 extern u16 Cell_Conv_Tab[64 * 1024];
-extern int VDP_Current_Line;
+//~ extern int VDP_Current_Line;
 
 #ifndef RAZE
 extern Z80_CONTEXT M_Z80;

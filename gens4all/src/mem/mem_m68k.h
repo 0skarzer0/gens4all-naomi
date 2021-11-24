@@ -41,12 +41,24 @@ extern int Last_BUS_REQ_St;
 extern int Bank_M68K;
 extern int Bank_SH2;
 
-extern int CPL_M68K;
-extern int CPL_S68K;
-extern int CPL_Z80;
-extern int Cycles_M68K;
-extern int Cycles_S68K;
-extern int Cycles_Z80;
+struct CPUCycles {
+	int cpl_m68K, cycles_m68k;
+	int cpl_z80, cycles_z80;
+};
+
+extern struct CPUCycles CycleData;
+
+#define CPL_M68K	CycleData.cpl_m68K
+#define Cycles_M68K	CycleData.cycles_m68k
+#define CPL_Z80	CycleData.cpl_z80
+#define Cycles_Z80	CycleData.cycles_z80
+
+//~ extern int CPL_M68K;
+//~ extern int CPL_S68K;
+//~ extern int CPL_Z80;
+//~ extern int Cycles_M68K;
+//~ extern int Cycles_S68K;
+//~ extern int Cycles_Z80;
 
 extern int Game_Mode;
 extern int CPU_Mode;

@@ -221,6 +221,18 @@ EmuInputButtons ContMap4to3 = {
 	.s = GENC_START,
 };
 
+EmuInputButtons ContMap4to3Rev = {
+	.u = GENC_UP,
+	.d = GENC_DOWN,
+	.l = GENC_LEFT,
+	.r = GENC_RIGHT,
+	.a = GENC_A,
+	.b = GENC_B,
+	.x = GENC_B,
+	.y = GENC_C,
+	.s = GENC_START,
+};
+
 EmuInputButtons ContMap4to6 = {
 	.u = GENC_UP,
 	.d = GENC_DOWN,
@@ -326,6 +338,10 @@ void Block_Hold(void) {
 	memset(&Cont[1].h, 0, sizeof(Cont[1].h));
 	memset(&Cont[2].h, 0, sizeof(Cont[2].h));
 	memset(&Cont[3].h, 0, sizeof(Cont[3].h));
+	memset(&Cont[0].c, 0, sizeof(Cont[0].c));
+	memset(&Cont[1].c, 0, sizeof(Cont[1].c));
+	memset(&Cont[2].c, 0, sizeof(Cont[2].c));
+	memset(&Cont[3].c, 0, sizeof(Cont[3].c));
 
 }
 
@@ -338,7 +354,10 @@ void Block_Click(void) {
 	memset(&Cont[1].c, 0, sizeof(Cont[1].c));
 	memset(&Cont[2].c, 0, sizeof(Cont[2].c));
 	memset(&Cont[3].c, 0, sizeof(Cont[3].c));
+
 }
+
+
 void Update_DC_Controllers(void) {
 	int i;
 	
@@ -358,7 +377,7 @@ void Update_DC_Controllers(void) {
 		if (cond == NULL)
 			continue;
 		Cont[i].type = CONT_4BUTTON;
-		if (contr->info.function_data[0] & (CONT_CAPABILITY_C | CONT_CAPABILITY_Z)) {
+		if (__builtin_bswap32(contr->info.function_data[0]) & (CONT_CAPABILITY_C | CONT_CAPABILITY_Z)) {
 			Cont[i].type = CONT_6BUTTON;
 		} 
 		
@@ -460,18 +479,21 @@ void Update_Controllers(void) {
 			}
 		}
 		
-		if (UICont->c.au || (UICont->h.a && UICont->h.b && UICont->h.x && UICont->h.y && UICont->h.s))
+		if (UICont->c.au || (UICont->h.a && UICont->h.b && UICont->h.x && UICont->h.y && UICont->c.s)) {
+			*GensControllerMap[0][GENC_START] = 1;
 			BringUpGameMenu();
+		}
 	}
 	
-#ifdef SKIPLOADER	
+	if (!DEBUGCOMMANDS)
+		return;
+	//~ dbgf("[%02x %02x] ", Ram_68k[0xF600], Ram_68k[0xF601]);
 	if ((inkey == (KBD_KEY_ESCAPE << 8)) || (UICont->h.sl && UICont->h.s)) {
 		dbgf("Exit\n");
 		Gens_Running = 0;
 		extern int Reset_Input_Lockout;
 		Reset_Input_Lockout = 1;
 	}
-#endif
 	if (inkey == (KBD_KEY_PRINT << 8)) {
 		vid_screen_shot("/pc/home/alex/dc/gens4all/shot.xpm");
 	}
@@ -490,26 +512,96 @@ void Update_Controllers(void) {
 		dbgf("Reset\n");
 		Reset_Genesis();
 	}
+	if (inkey == (KBD_KEY_F2 << 8)) {
+		PVR_GET(PVR_UNK_0080)++;
+		dbgf("Center: %i\n", PVR_GET(PVR_UNK_0080) & 0x7);
+	}
 	if (inkey == 's') {
 		Change_Sound();
 		dbgf("Sound %i\n", Sound_Enable);
 	}
-	if (inkey == 'f') {
+	/*if (inkey == 'w') {
+		extern struct Reg_VDP_Type VDP_Reg;
+		
+		printf("HWin RIGHT: %i\n", VDP_Reg.Win_H_Pos >> 7);
+		printf("HWin WHP: %i\n", VDP_Reg.Win_H_Pos & 0x1f);
+		printf("VWin DOWN: %i\n", VDP_Reg.Win_V_Pos >> 7);
+		printf("VWin WVP: %i\n", VDP_Reg.Win_V_Pos & 0x1f);
+	}*/
+	if (inkey == 'M') {
+		Sound_Enable = !Sound_Enable;
+	}
+	if (inkey == '!') {
+		printf("Gathering samples...\n");
+		fflush(stdout);
+		pfSampGo();
+	}
+	if (inkey == '@') {
+		pfSampStop();
+		pfSampSave("/pc/home/alex/dc/gens4all/prof.txt", 0);
+	}
+	if (inkey == 'f' || (UICont->c.y && UICont->h.sr)) {
 		int i;
 		extern unsigned prof_total;
 		
 		pvr_stats_t stats;
 		pvr_get_stats(&stats);
+		printf("-----------------------------\n");
 		printf("Reg time: %i ms\n", stats.reg_last_time);
 		printf("Rnd time: %i ms\n", stats.rnd_last_time);
 		printf("Vert buff: %i bytes\n", stats.vtx_buffer_used);
 		
-		dbgf("Last frame CPU load:\n");
-		//for(i = 0; i < prof_total; i++) {
-		for(i = 1; i < 6; i++) {
-			dbgf("%8s: %2.2f ms\n", prof_msg[i], ((float)prof_last_frame_time[i]) / 1000.0f);
-		}
+		//~ dbgf("Last frame CPU load:\n");
+		//~ //for(i = 0; i < prof_total; i++) {
+		//~ for(i = 1; i < 6; i++) {
+			//~ dbgf("%8s: %2.2f ms\n", prof_msg[i], ((float)prof_last_frame_time[i]) / 1000.0f);
+		//~ }
 		dbgf("Flipwait: %2.2f ms\n", (float)(prof_last_frame_time[PROF_BLIT] - prof_last_frame_time[PROF_VRENDER]) / 1000.0f);
+		dbgf("Busy avrg: %2.2f ms\n", frame_busy_avrg);
+		dbgf("Render total: %2.2f ms\n", render_total_us / 1000.0f);
+		prof_show();
+		
+		frame_busy_avrg = last_frame_busy;
+	}
+	if (inkey == '[') {
+		int v = 0x00200033;
+		v |= 4 << 14;
+		v |= 4 << 8;
+		PVR_GET(PVR_UNK_007C) = v;
+	}
+	if (inkey == ']') {
+		int v = 0x002000ff;
+		v |= 31 << 14;
+		v |= 31 << 8;
+		PVR_GET(PVR_UNK_007C) = v;
+	}
+	if (inkey == ';') {
+		int cv = *(int*)0xa005f8098;
+		printf("PVR: %08x\n", cv);
+		printf("TL: %0i\n", (cv>>14) & 0x3ff);
+		printf("PT: %0i\n", (cv>>4) & 0x3ff);
+		
+		cv = *(int*)0xa005f807c;
+		printf("PVR: %08x\n", cv);
+	}
+	if (inkey == 'Y') {
+		int i, algo_type;
+		
+		if(YM2612.Inter_Step & 0x04000) {
+			algo_type = 0;
+			printf("Regular\n");
+		} else {
+			algo_type = 16;
+			printf("Interp.\n");
+		}
+		if(YM2612.LFOinc) {
+			printf("LFO enabled\n");
+			algo_type |= 8;
+		}
+		for(i = 0; i < 6; i++) {
+			printf("Ch %i: %i (Cnt %i)\n", i, YM2612.CHANNEL[i].ALGO + algo_type, YM2612.CHANNEL[i].SLOT[3].Ecnt);
+		}
+		printf("Diff %i\n", (void*)&YM2612.CHANNEL[0].SLOT[3].Ecnt - (void*)&YM2612.CHANNEL[0]);
 	}
 }
 #if 0
@@ -588,7 +680,7 @@ void Update_Controllers(void)
 		soundrecpos = 0;
 	}
 	if (inkey == '8') {
-		#define soundrecbytes	(512*1024)
+		#define soundrecbytes	(128*1024)
 		extern char soundrec[soundrecbytes];
 		int f = open("/pc/home/alex/Emu/Genesis/recdump2.raw", O_WRONLY | O_TRUNC);
 		write(f, soundrec, soundrecpos);

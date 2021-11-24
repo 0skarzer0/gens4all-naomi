@@ -15,15 +15,18 @@
 #define	CENTER_Y	120
 #endif
 
-#define ARR_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define MENU_BG_COLOR	0xb0202030
 
+#define ARR_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define LINE_HEIGHT	(emufont->lineheight)
 struct MenuItem {
 	const char *string;
 	int selectable;
 	const char * (*getstr)(const struct MenuItem *mi);
-	void (*picked)();
-	void (*left)();
-	void (*right)();
+	void (*picked)(const struct MenuItem *mi);
+	void (*left)(const struct MenuItem *mi);
+	void (*right)(const struct MenuItem *mi);
+	int idx;
 };
 
 static const char *MyStr(const struct MenuItem *mi) {
@@ -73,15 +76,15 @@ static void ProcessMenu(const struct MenuItem *menu, int menusize, int *selectio
 	//Activate selection
 	if (UICont->c.a) {
 		if (menu[sel].picked != NULL) {
-			menu[sel].picked();
+			menu[sel].picked(menu+sel);
 		}
 	} else if (UICont->c.l) {
 		if (menu[sel].left != NULL) {
-			menu[sel].left();
+			menu[sel].left(menu+sel);
 		}
 	} else if (UICont->c.r) {
 		if (menu[sel].right != NULL) {
-			menu[sel].right();
+			menu[sel].right(menu+sel);
 		}
 	}
 	
@@ -106,8 +109,9 @@ static void (*MenuMode)() = &MainMenu;
 void BringUpGameMenu() {
 	Paused = 1;
 	//~ MenuMode = &MainMenu;
+	//~ Block_Hold_And_Click();
 	Block_Hold();
-	Block_Click();
+	//~ Block_Click();
 }
 
 void CloseGameMenu() {
@@ -123,44 +127,154 @@ static void ExitGame() {
 	Reset_Input_Lockout = 1;
 }
 
+static void VideoMenu();
+static void EnterVideoMenu() {
+	MenuMode = &VideoMenu;
+}
+
 ////////////////////////////////////////////////////////////////////////////
 //Debug
 extern int Show_Timing;
 extern int Show_Rasters;
 extern int Enable_Shadow_Highlight;
+extern int Show_FPS;
 static void ToggleProf() {
 	Show_Timing = !Show_Timing;
 }
-static void ToggleRaster() {
+static void ToggleShowRaster() {
 	Show_Rasters = !Show_Rasters;
 }
 static void ToggleRenderPoint() {
-	Render_Point = !Render_Point;
+	if (Render_Point <= 1)
+		Render_Point = !Render_Point;
 }
 static void ToggleSH() {
 	Enable_Shadow_Highlight = !Enable_Shadow_Highlight;
 }
 static const char *ProfStr(const struct MenuItem *mi) {
-	return Show_Timing ? "Timing is shown" : "Timing is hidden";
+	return Show_Timing ? "Perf. Timing (Shown)" : "Perf. Timing (Hidden)";
 }
-static const char *RasterStr(const struct MenuItem *mi) {
-	return Show_Rasters ? "Raster lines shown" : "Raster lines hidden";
+static const char *ShowRasterStr(const struct MenuItem *mi) {
+	return Show_Rasters ? "Raster Events (Shown)" : "Raster Events (Hidden)";
 }
 static const char *RPointStr(const struct MenuItem *mi) {
-	return Render_Point ? "Rendering at VBlank End" : "Rendering at VBlank Start";
+	if (Render_Point == 0)
+		return "Rendering at VBlank Start";
+	if (Render_Point == 1)
+		return "Rendering at VBlank End";
+	if (Render_Point == 2 || Render_Point == 3)
+		return "Rendering at first blank";
+	return "Rendering at ???";
 }
 static const char *SHStr(const struct MenuItem *mi) {
 	return Enable_Shadow_Highlight ? "S/H Enabled" : "S/H Disabled";
 }
+static void ToggleFPS() {
+	Show_FPS = !Show_FPS;
+}
+static const char *FPSStr(const struct MenuItem *mi) {
+	return Show_FPS ? "FPS (Shown)" : "FPS (Hidden)";
+}
+
+#define MAX_MAPA	1
+#define MAX_MAPB	1
+extern int Enable_MapA;
+extern int Enable_MapB;
+extern int Enable_Win;
+extern int Enable_Sprites;
+
+static void NextMapA() {
+	Enable_MapA++;
+	if (Enable_MapA > MAX_MAPA) Enable_MapA = 0;
+}
+static void PrevMapA() {
+	Enable_MapA--;
+	if (Enable_MapA < 0) Enable_MapA = MAX_MAPA;
+}
+static void NextMapB() {
+	Enable_MapB++;
+	if (Enable_MapB > MAX_MAPB) Enable_MapB = 0;
+}
+static void PrevMapB() {
+	Enable_MapB--;
+	if (Enable_MapB < 0) Enable_MapB = MAX_MAPB;
+}
+static const char *MapAStr(const struct MenuItem *mi) {
+	if (Enable_MapA == 1)
+		return "Map A (On)";
+	if (Enable_MapA == 2)
+		return "Map A (Old)";
+	return "Map A (Off)";
+}
+static const char *MapBStr(const struct MenuItem *mi) {
+	if (Enable_MapB == 1)
+		return "Map B (On)";
+	if (Enable_MapB == 2)
+		return "Map B (Old)";
+	return "Map B (Off)";
+}
+static void ToggleWin() {
+	Enable_Win = !Enable_Win;
+}
+static const char *WinStr(const struct MenuItem *mi) {
+	return Enable_Win ? "Window (On)" : "Window (Off)";
+}
+static void ToggleSprites() {
+	Enable_Sprites = !Enable_Sprites;
+}
+static const char *SpritesStr(const struct MenuItem *mi) {
+	return Enable_Sprites ? "Sprites (On)" : "Sprites (Off)";
+}
+
+static void DebugDispMenu() {
+	static int DebugDispSelection = 0;
+	static const struct MenuItem layermenu[] = {
+		{"Display Debug", 0, &MyStr, 0, 0, 0},
+		{"", 0, &MyStr, 0, 0, 0},
+		//~ {"S/H En", 1, &SHStr, &ToggleSH, &ToggleSH, &ToggleSH},
+		{"Show Prof", 1, &ProfStr, &ToggleProf, &ToggleProf, &ToggleProf},
+		{"Show Raster", 1, &ShowRasterStr, &ToggleShowRaster, &ToggleShowRaster, &ToggleShowRaster},
+		{"Show FPS", 1, &FPSStr, &ToggleFPS, &ToggleFPS, &ToggleFPS},
+		//~ {"Rasters", 1, &RasterStr, &ToggleRaster, &ToggleRaster, &ToggleRaster},
+		{"", 0, &MyStr, 0, 0, 0},
+		
+		{"Map A", 1, &MapAStr, &NextMapA, &PrevMapA, &NextMapA},
+		{"Map B", 1, &MapBStr, &NextMapB, &PrevMapB, &NextMapB},
+		{"Window", 1, &WinStr, &ToggleWin, &ToggleWin, &ToggleWin},
+		{"Sprites", 1, &SpritesStr, &ToggleSprites, &ToggleSprites, &ToggleSprites},
+		
+		{"", 0, &MyStr, 0, 0, 0},
+		{"Back", 1, &MyStr, &EnterVideoMenu, 0, 0},
+	};
+	
+	if (UICont->h.y)
+		return;
+	
+	if (UICont->c.b)
+		EnterVideoMenu();
+	else if (UICont->c.s || UICont->c.au)
+		CloseGameMenu();
+	
+	//Draw shadow
+	draw_rect_wh(24, 24, 320-48,240-48, 400, MENU_BG_COLOR, sqPrepare((void*)PVR_TA_INPUT));
+	
+	ProcessMenu(layermenu, ARR_SIZE(layermenu), &DebugDispSelection, 1);
+}
+static void EnterDebugDisplay() {
+	MenuMode = &DebugDispMenu;
+}
 
 ////////////////////////////////////////////////////////////////////////////
 //Controller
+static int ControlSetting = 0;
+
 struct ControllerSetting {
 	const char *name;
 	EmuInputButtons *mapping;
 };
 
 extern EmuInputButtons ContMap4to3;
+extern EmuInputButtons ContMap4to3Rev;
 extern EmuInputButtons ContMap4to6;
 extern EmuInputButtons ContMap6to6;
 extern EmuInputButtons ContMap4toViking;
@@ -168,16 +282,17 @@ extern EmuInputButtons ContMap4toSF2;
 
 static const struct ControllerSetting contsettings[] = {
 	{"DC 4B to Gen 3B", &ContMap4to3},
+	{"DC 4B to Gen 3B (Rev)", &ContMap4to3Rev}, 
 	{"DC 4B to Gen 6B", &ContMap4to6},
-	{"DC 4B to Gen 6B (SF2)", &ContMap4toSF2},
 	{"DC 4B to Gen 6B (Viking)", &ContMap4toViking},
+	{"DC 4B to Gen 6B (SF2)", &ContMap4toSF2},
 	{"DC 6B to Gen 6B", &ContMap6to6}, 
 };
-static int ControlSetting = 0;
-static const char *ControlStr(const struct MenuItem *mi) {
-	return contsettings[ControlSetting].name;
-}
+
 static void UpdateControlSetting() {
+	if (ControlSetting < 0 || ControlSetting >= ARR_SIZE(contsettings))
+		ControlSetting = 0;
+	
 	extern EmuInputButtons *ContMap[MAX_CONTROLLERS];
 	ContMap[0] = contsettings[ControlSetting].mapping;
 	ContMap[1] = contsettings[ControlSetting].mapping;
@@ -194,6 +309,17 @@ static void UpdateControlSetting() {
 	}
 		
 }
+
+void SetControls(int controlidx) {
+	ControlSetting = controlidx;
+	UpdateControlSetting();
+}
+
+
+static const char *ControlStr(const struct MenuItem *mi) {
+	return contsettings[ControlSetting].name;
+}
+
 static void NextControlSetting() {
 	ControlSetting++;
 	if (ControlSetting >= ARR_SIZE(contsettings))
@@ -207,56 +333,97 @@ static void PrevControlSetting() {
 	UpdateControlSetting();
 }
 
+static void ExitController() {
+	MenuMode = &MainMenu;
+}
+
+
+static void ChangeControls(const struct MenuItem *mi) {
+	SetControls(mi->idx);
+}
+
+static const char *ControlStr2(const struct MenuItem *mi) {
+	static char buff[100];
+	if (ControlSetting == mi->idx)
+		snprintf(buff, sizeof(buff)-1, ">>>%s<<<", mi->string);
+	else
+		snprintf(buff, sizeof(buff)-1, "%s", mi->string);
+	return buff;
+}
+static int ControllerSelection = 0;
+
+static void ControllerMenu() {
+	static const struct MenuItem menu[] = {
+		{"", 0, &MyStr, 0, 0, 0},
+		{"Controls", 0, &MyStr, 0, 0, 0},
+		{"", 0, &MyStr, 0, 0, 0},
+	
+		{"3 Button", 1, &ControlStr2, &ChangeControls, 0, 0, 0},
+		{"3 Button (A/C Reversed)", 1, &ControlStr2, &ChangeControls, 0, 0, 1},
+		{"6 Button", 1, &ControlStr2, &ChangeControls, 0, 0, 2},
+		{"6 Button (Alt)", 1, &ControlStr2, &ChangeControls, 0, 0, 3},
+		{"6 Button (Fighting)", 1, &ControlStr2, &ChangeControls, 0, 0, 4},
+		{"6 Button (6B DC)", 1, &ControlStr2, &ChangeControls, 0, 0, 5},
+		{"", 0, &MyStr, 0, 0, 0},
+		{"Back", 1, &MyStr, &ExitController, 0, 0},
+	};
+	if (UICont->c.b)
+		ExitController();
+	else if (UICont->c.s || UICont->c.au)
+		CloseGameMenu();
+	
+	//Draw shadow
+	draw_rect_wh(24, 24, 320-48,240-48, 400, MENU_BG_COLOR, sqPrepare((void*)PVR_TA_INPUT));
+	
+	ProcessMenu(menu, ARR_SIZE(menu), &ControllerSelection, 1);
+}
+static void EnterControllerMenu() {
+	MenuMode = &ControllerMenu;
+}
+
 ////////////////////////////////////////////////////////////////////////////
 //Render setting
-struct LineDrawSetting {
+struct NLineDrawSetting {
 	const char *name;
-	DrawRow drawa;
-	DrawRow drawb;
+	int drawa;
+	int drawb;
 };
 
-extern DrawRow DrawRowB;
-extern DrawRow DrawRowA;
-void DrawMapRowAutoSplit4(pvr_context *tex, short *tmrow, int layer, int line, int tileofs, float scry, float lowpriodepth, float hipriodepth);
-void DrawMapRowAutoSplit2(pvr_context *tex, short *tmrow, int layer, int line, int tileofs, float scry, float lowpriodepth, float hipriodepth);
-void DrawMapRowAutoSplit1(pvr_context *tex, short *tmrow, int layer, int line, int tileofs, float scry, float lowpriodepth, float hipriodepth);
-void DrawMapRowAutoSplit4Cell(pvr_context *tex, short *tmrow, int layer, int line, int tileofs, float scry, float lowpriodepth, float hipriodepth);
-void DrawMapRowAutoSplit2Cell(pvr_context *tex, short *tmrow, int layer, int line, int tileofs, float scry, float lowpriodepth, float hipriodepth);
-void DrawMapRowAutoSplit1Cell(pvr_context *tex, short *tmrow, int layer, int line, int tileofs, float scry, float lowpriodepth, float hipriodepth);
-void DrawRowFastCell(pvr_context *tex, short *tmrow, int layer, int line, int tileofs, float scry, float lowpriodepth, float hipriodepth);
-void DrawRowFast(pvr_context *tex, short *tmrow, int layer, int line, int tileofs, float scry, float lowpriodepth, float hipriodepth);
-
-static const struct LineDrawSetting drawsettings[] = {
-	{"Line Tile Auto Split (1 div)", &DrawMapRowAutoSplit1, &DrawMapRowAutoSplit1},
-	{"Line Tile Auto Split (2 div)", &DrawMapRowAutoSplit2, &DrawMapRowAutoSplit2},
-	{"Line Tile Auto Split (4 div A)", &DrawMapRowAutoSplit4, &DrawMapRowAutoSplit1},
-	{"Line Tile Auto Split (4 div B)", &DrawMapRowAutoSplit1, &DrawMapRowAutoSplit4},
-	{"Cell Scroll", &DrawRowFastCell, &DrawRowFastCell},
-	{"Cell Scroll Auto Split (1 div)", &DrawMapRowAutoSplit1Cell, &DrawMapRowAutoSplit1Cell},
-	{"Cell Scroll Auto Split (2 div)", &DrawMapRowAutoSplit2Cell, &DrawMapRowAutoSplit2Cell},
-	{"Cell Scroll Auto Split (4 div A)", &DrawMapRowAutoSplit4Cell, &DrawMapRowAutoSplit1Cell},
-	{"Cell Scroll Auto Split (4 div B)", &DrawMapRowAutoSplit1Cell, &DrawMapRowAutoSplit4Cell},
-	{"Line Tilt", &DrawRowFast, &DrawRowFast},
+static const struct NLineDrawSetting ndrawsettings[] = {
+	{"Line Scroll", MAP_DRAW_SPLIT2, MAP_DRAW_SPLIT2},
+	{"Line Scroll (4 div A)", MAP_DRAW_SPLIT4, MAP_DRAW_SPLIT2},
+	{"Line Scroll (4 div B)", MAP_DRAW_SPLIT2, MAP_DRAW_SPLIT4},
+	{"Cell Scroll", MAP_DRAW_SPLIT2_CELL, MAP_DRAW_SPLIT2_CELL},
+	{"Cell Scroll (4 div A)", MAP_DRAW_SPLIT4_CELL, MAP_DRAW_SPLIT2_CELL},
+	{"Cell Scroll (4 div B)", MAP_DRAW_SPLIT2_CELL, MAP_DRAW_SPLIT4_CELL},
 };
-static int DrawSetting = 1;
-static const char *DrawStr(const struct MenuItem *mi) {
-	return drawsettings[DrawSetting].name;
+static int NDrawSetting = 0;
+extern int Sonic_2_Auto_Render;
+static const char *NDrawStr(const struct MenuItem *mi) {
+	if (Sonic_2_Auto_Render)
+		return "Sonic 2 Auto";
+	else
+		return ndrawsettings[NDrawSetting].name;
 }
-static void UpdateDrawSetting() {
-	DrawRowB = drawsettings[DrawSetting].drawb;
-	DrawRowA = drawsettings[DrawSetting].drawa;
+static void NUpdateDrawSetting() {
+	MapBDrawFuncId = ndrawsettings[NDrawSetting].drawb;
+	MapADrawFuncId = ndrawsettings[NDrawSetting].drawa;
 }
-static void NextDrawSetting() {
-	DrawSetting++;
-	if (DrawSetting >= ARR_SIZE(drawsettings))
-		DrawSetting = 0;
-	UpdateDrawSetting();
+static void NNextDrawSetting() {
+	if (Sonic_2_Auto_Render)
+		return;
+	NDrawSetting++;
+	if (NDrawSetting >= ARR_SIZE(ndrawsettings))
+		NDrawSetting = 0;
+	NUpdateDrawSetting();
 }
-static void PrevDrawSetting() {
-	DrawSetting--;
-	if (DrawSetting < 0)
-		DrawSetting = ARR_SIZE(drawsettings)-1;
-	UpdateDrawSetting();
+static void NPrevDrawSetting() {
+	if (Sonic_2_Auto_Render)
+		return;
+	NDrawSetting--;
+	if (NDrawSetting < 0)
+		NDrawSetting = ARR_SIZE(ndrawsettings)-1;
+	NUpdateDrawSetting();
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -272,7 +439,7 @@ static void SaveResult() {
 	void *pc = sqPrepare((void*)PVR_TA_INPUT);
 	
 	//Draw shadow
-	draw_rect_wh(24*2, 24*2, 320-48*2,240-48*2, 400, 0xa0000000, pc);
+	draw_rect_wh(24*2, 24*2, 320-48*2,240-48*2, 400, MENU_BG_COLOR, pc);
 	
 	if (save_result == -1)
 		puts_center(emufont, CENTER_Y - emufont->lineheight/2, "Nothing to save");
@@ -289,7 +456,7 @@ static void CommitSave() {
 	
 	void *pc = sqPrepare((void*)PVR_TA_INPUT);
 	//Draw shadow
-	draw_rect_wh(24*2, 24*2, 320-48*2,240-48*2, 400, 0xa0000000, pc);
+	draw_rect_wh(24*2, 24*2, 320-48*2,240-48*2, 400, MENU_BG_COLOR, pc);
 }
 static void SaveMenu() {
 	if (UICont->c.b || UICont->c.s) {
@@ -301,7 +468,7 @@ static void SaveMenu() {
 		//We want "Saving..." to be displayed before saving, so render one frame here,
 		//then on the next frame do the actual save in CommitSave
 		void *pc = sqPrepare((void*)PVR_TA_INPUT);
-		draw_rect_wh(24*2, 24*2, 320-48*2,240-48*2, 400, 0xa0000000, pc);
+		draw_rect_wh(24*2, 24*2, 320-48*2,240-48*2, 400, MENU_BG_COLOR, pc);
 		puts_center(emufont, CENTER_Y - emufont->lineheight/2, "Saving...");
 		MenuMode = &CommitSave;
 		return;
@@ -317,7 +484,7 @@ static void SaveMenu() {
 	void *pc = sqPrepare((void*)PVR_TA_INPUT);
 	
 	//Draw shadow
-	draw_rect_wh(24*2, 24*2, 320-48*2,240-48*2, 400, 0xa0000000, pc);
+	draw_rect_wh(24*2, 24*2, 320-48*2,240-48*2, 400, MENU_BG_COLOR, pc);
 	
 	//~ puts_center(emufont, CENTER_Y - emufont->lineheight/2, "Nothing to save");
 }
@@ -339,7 +506,6 @@ static void DoSave() {
 	}
 }
 
-
 ////////////////////////////////////////////////////////////////////////////
 //Video Menu
 
@@ -352,34 +518,43 @@ static int VideoMenuSelection = 0;
 static void VideoMenu() {
 	static const struct MenuItem videomenu[] = {
 		{"", 0, &MyStr, 0, 0, 0},
+		{"", 0, &MyStr, 0, 0, 0},
 		{"Video Options", 0, &MyStr, 0, 0, 0},
 		{"", 0, &MyStr, 0, 0, 0},
-		{"Line Draw", 1, &DrawStr, &NextDrawSetting, &PrevDrawSetting, &NextDrawSetting},
+		//~ {"Line Draw", 1, &DrawStr, &NextDrawSetting, &PrevDrawSetting, &NextDrawSetting},
+		{"Line Draw", 1, &NDrawStr, &NNextDrawSetting, &NPrevDrawSetting, &NNextDrawSetting},
 		{"S/H En", 1, &SHStr, &ToggleSH, &ToggleSH, &ToggleSH},
-		{"Show Prof", 1, &ProfStr, &ToggleProf, &ToggleProf, &ToggleProf},
-		{"Show Raster", 1, &RasterStr, &ToggleRaster, &ToggleRaster, &ToggleRaster},
-		{"RenderPoint", 1, &RPointStr, &ToggleRenderPoint, &ToggleRenderPoint, &ToggleRenderPoint},
+		{"RPoint", 1, &RPointStr, &ToggleRenderPoint, &ToggleRenderPoint, &ToggleRenderPoint},
+		//~ {"Show Prof", 1, &ProfStr, &ToggleProf, &ToggleProf, &ToggleProf},
+		//~ {"Show Raster", 1, &ShowRasterStr, &ToggleShowRaster, &ToggleShowRaster, &ToggleShowRaster},
+		//~ {"Show FPS", 1, &FPSStr, &ToggleFPS, &ToggleFPS, &ToggleFPS},
 		{"", 0, &MyStr, 0, 0, 0},
+		{"Display Debug", 1, &MyStr, &EnterDebugDisplay, 0, 0},
+		//~ {"Layers", 1, &MyStr, &EnterLayerMenu, 0, 0},
 		{"", 0, &MyStr, 0, 0, 0},
 		{"Back", 1, &MyStr, &ExitVideo, 0, 0},
 	};
-	
+	if (UICont->h.y)
+		return;
 	if (UICont->c.b)
 		ExitVideo();
 	else if (UICont->c.s || UICont->c.au)
 		CloseGameMenu();
 	
 	//Draw shadow
-	draw_rect_wh(24, 24, 320-48,240-48, 400, 0xa0000000, sqPrepare((void*)PVR_TA_INPUT));
+	draw_rect_wh(24, 24+LINE_HEIGHT, 320-48,240-48-LINE_HEIGHT, 400, MENU_BG_COLOR, sqPrepare((void*)PVR_TA_INPUT));
 	
 	ProcessMenu(videomenu, ARR_SIZE(videomenu), &VideoMenuSelection, 1);
 }
-static void EnterVideoMenu() {
-	MenuMode = &VideoMenu;
-}
+
 
 ////////////////////////////////////////////////////////////////////////////
 //Main Menu
+
+static void Reset(const struct MenuItem * mi) {
+	Reset_Genesis();
+}
+
 static int MainMenuSelection = 0;
 static void MainMenu() {
 	static const struct MenuItem mainmenu[] = {
@@ -387,23 +562,26 @@ static void MainMenu() {
 		{"Paused", 0, &MyStr, 0, 0, 0},
 		{"", 0, &MyStr, 0, 0, 0},
 		{"Resume Game", 1, &MyStr, &CloseGameMenu, 0, 0},
-		{"Controls", 1, &ControlStr, &NextControlSetting, &PrevControlSetting, &NextControlSetting},
+		{"Controls", 1, &MyStr, &EnterControllerMenu, 0, 0},
 		{"SRAM", 1, &SRAMStr, &DoSave, 0, 0},
-		{"Hard Reset", 1, &MyStr, &Reset_Genesis, 0, 0},
+		{"Hard Reset", 1, &MyStr, &Reset, 0, 0},
 		{"Video Options", 1, &MyStr, &EnterVideoMenu, 0, 0},
 		{"", 0, &MyStr, 0, 0, 0},
 		{"", 0, &MyStr, 0, 0, 0},
 		{"Exit Game", 1, &MyStr, &ExitGame, 0, 0},
 	};
 	
-	if (UICont->c.b || UICont->c.s || UICont->c.au)
+	if (UICont->c.b || UICont->c.s || UICont->c.au) {
 		CloseGameMenu();
+	}
 	
+	if (UICont->h.y)
+		return;
 	
 	void *pc = sqPrepare((void*)PVR_TA_INPUT);
 	
 	//Draw shadow
-	draw_rect_wh(24, 24, 320-48,240-48, 400, 0xa0000000, sqPrepare((void*)PVR_TA_INPUT));
+	draw_rect_wh(24, 24, 320-48,240-48, 400, MENU_BG_COLOR, sqPrepare((void*)PVR_TA_INPUT));
 	
 	ProcessMenu(mainmenu, ARR_SIZE(mainmenu), &MainMenuSelection, 1);
 }

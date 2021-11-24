@@ -16,6 +16,7 @@
 #include "ggenie.h"
 #include "io.h"
 #include "cd_sys.h"
+#include "gamelist.h"
 
 #ifdef RAZE
 #else
@@ -699,7 +700,7 @@ void Export_Genesis (unsigned char *Data)
   for (i = 0; i < 24; i++)
     {
       Data[0xFA + i] = *src;
-      src += 4;
+      src += sizeof(VDPReg_t);
     }
 
   for (i = 0; i < 0x80; i++)
@@ -1153,7 +1154,11 @@ Save_Config (char *File_Name)
   WritePrivateProfileString ("Sound", "PSG State", Str_Tmp, Conf_File);
   sprintf (Str_Tmp, "%d", DAC_Enable & 1);
   WritePrivateProfileString ("Sound", "DAC State", Str_Tmp, Conf_File);
+#ifdef SEGA_CD
   sprintf (Str_Tmp, "%d", PCM_Enable & 1);
+#else
+  sprintf (Str_Tmp, "%d", 0);
+#endif
   WritePrivateProfileString ("Sound", "PCM State", Str_Tmp, Conf_File);
 
 #ifdef SEGA_32X
@@ -1631,9 +1636,11 @@ Load_Config (char *File_Name, void *Game_Active)
 	    GetPrivateProfileInt ("Sound", "PSG State", 1, Conf_File);
 	  DAC_Enable =
 	    GetPrivateProfileInt ("Sound", "DAC State", 1, Conf_File);
+#ifdef SEGA_CD
+
 	  PCM_Enable =
 	    GetPrivateProfileInt ("Sound", "PCM State", 1, Conf_File);
-
+#endif
 #ifdef SEGA_32X
 	  PWM_Enable =
 	    GetPrivateProfileInt ("Sound", "PWM State", 1, Conf_File);
@@ -1652,8 +1659,10 @@ Load_Config (char *File_Name, void *Game_Active)
 	GetPrivateProfileInt ("Sound", "YM2612 State", 1, Conf_File);
       PSG_Enable = GetPrivateProfileInt ("Sound", "PSG State", 1, Conf_File);
       DAC_Enable = GetPrivateProfileInt ("Sound", "DAC State", 1, Conf_File);
-      PCM_Enable = GetPrivateProfileInt ("Sound", "PCM State", 1, Conf_File);
+#ifdef SEGA_CD
 
+      PCM_Enable = GetPrivateProfileInt ("Sound", "PCM State", 1, Conf_File);
+#endif
 #ifdef SEGA_32X
       PWM_Enable = GetPrivateProfileInt ("Sound", "PWM State", 1, Conf_File);
 #endif
@@ -1908,6 +1917,7 @@ Load_As_Config (void *Game_Active)
 
 
 static int GetSRAMSize(void) {
+	
 	int i, size_to_save;
 	i = (64 * 1024) - 1;
 	while ((i >= 0) && (SRAM[i] == 0))
@@ -1919,6 +1929,14 @@ static int GetSRAMSize(void) {
 	while (i > size_to_save)
 		size_to_save <<= 1;
 	
+	printf("Calced %i\n", size_to_save);
+	
+	if (GLCurGame) {
+		int GLSize = GL_CalcSRAMSize(GLCurGame->SRAMSize);
+		
+		if (size_to_save < GLSize)
+			size_to_save = GLSize;
+	}
 	return size_to_save;
 }
 
@@ -1930,6 +1948,18 @@ static int GetSRAMSize(void) {
 	3 if both even and odd bytes have data
 */
 static int GetSRAMColumns(int size) {
+	if (GLCurGame) {
+		switch(GLCurGame->SRAM) {
+		case SAV_NONE: return 0;
+		case SAV_ODD_BYTES_SRAM: return 2;
+		case SAV_EVEN_BYTES_SRAM: return 1;
+		case SAV_WORD_SRAM: return 3;
+		case SAV_EEPROM: return 3;
+		default:
+			;
+		};
+	}
+	
 	int i, cols = 0;
 	for(i = 0; i < size; i++) {
 		if (SRAM[i]) {
@@ -1992,6 +2022,7 @@ int Destination_Free_Space;
 static uint8_t *VMUData;
 static int VMUDataSize;
 
+
 static void GetSaveFileName(void) {
 	if (SAVE_TO_PC) {
 		strcpy (SaveName, "/pc/home/alex/Emu/Genesis/GENS4ALL_");
@@ -2009,35 +2040,45 @@ static void GetSaveFileName(void) {
 		}
 	}
 	
-	//Hash the ROM serial number for the end of the filename
-	unsigned int hash = 5381, i;
-	for(i = 0; i < sizeof(Game->Version); i++) {
-		hash = (hash <<5) + hash + Game->Version[i];
-	}
-	hash ^= hash>>16;
-	
-	//Convert to letters
-	char mininame[4] = {0,0,0,0};
-	for(i = 0; i < 3; i++) { 
-		mininame[i] = hash % 52;
-		hash /= 52;
+	//If using the loader and it has a save name, use that
+	if (GLCurGame && memcmp(GLCurGame->SaveExtension, "000", 3) != 0) {
+		int len = strlen(SaveName);
+		memcpy(SaveName + len, GLCurGame->SaveExtension, 3);
+		SaveName[len+4] = 0;
+	} else {
+		//Hash the ROM serial number for the end of the filename
+		unsigned int hash = 5381, i;
+		for(i = 0; i < sizeof(Game->Version); i++) {
+			hash = (hash <<5) + hash + Game->Version[i];
+		}
+		hash ^= hash>>16;
 		
-		mininame[i] = (mininame[i] > 26) ? ('a' + mininame[i] - 26) : (mininame[i] + 'A');
+		//Convert to letters
+		char mininame[4] = {0,0,0,0};
+		for(i = 0; i < 3; i++) { 
+			mininame[i] = hash % 52;
+			hash /= 52;
+			
+			mininame[i] = (mininame[i] > 26) ? ('a' + mininame[i] - 26) : (mininame[i] + 'A');
+		}
+		//~ char mininame[] = {Rom_Name[0],Rom_Name[1],Rom_Name[2], 0};
+		strcat (SaveName, mininame);
 	}
-	//~ char mininame[] = {Rom_Name[0],Rom_Name[1],Rom_Name[2], 0};
-	strcat (SaveName, mininame);
 }
 
 int Has_SRAM_Changed(void) {
-	return memcmp(SRAM, OrigSRAM, 64*1024) != 0;
-	
-	int i;
-	for(i = 0; i < 64*1024; i++) {
-		if (SRAM[i] != 0)
-			return 1;
-	}
-	return 0;
+	if (GLCurGame && GLCurGame->SRAM == SAV_NONE)
+		return 0;
+	else
+		return memcmp(SRAM, OrigSRAM, 64*1024) != 0;
 }
+
+typedef struct {
+	char version;
+	char type;
+	unsigned short size;
+	unsigned char data[];
+} SaveHeader;
 
 int Load_SRAM (void)
 {
@@ -2066,46 +2107,27 @@ int Load_SRAM (void)
 		return 0;
 	}
 	
-	int cols = vmupkg.data[0];
-	int sramsize = vmupkg.data[1] | (vmupkg.data[2] << 8);
+	SaveHeader *shead = (void*)vmupkg.data;
 	
-	if (sramsize > 64*1024)
+	if (shead->version == 0) {
+		if (shead->size > sizeof(SRAM))
+			return 0;
+		
+		if (shead->type == 1)
+			SRAMStretch(shead->data, SRAM, shead->size);
+		else if (shead->type == 2)
+			SRAMStretch(shead->data, SRAM+1, shead->size);
+		else if (shead->type == 3)
+			memcpy(SRAM, shead->data, shead->size);
+	} else {
+		//TODO error unknown version
 		return 0;
-	
-	if (cols == 1)
-		SRAMStretch(vmupkg.data+3, SRAM, sramsize);
-	else if (cols == 2)
-		SRAMStretch(vmupkg.data+3, SRAM+1, sramsize);
-	else if (cols == 3)
-		memcpy(SRAM, vmupkg.data+3, sramsize);
+	}
 	
 	memcpy(OrigSRAM, SRAM, 64*1024);
 	
 	strcpy (Str_Tmp, "SRAM loaded from ");
 	strcat (Str_Tmp, SaveName);
-	Put_Info (Str_Tmp, 2000);
-	return 1;
-}
-
-int Load_SRAM_FS (void)
-{
-	FILE *SRAM_File = 0;
-	char Name[2048];
-
-	memset (SRAM, 0, 64 * 1024);
-	
-	strcpy (Name, SRAM_Dir);
-	strcat (Name, Rom_Name);
-	strcat (Name, ".srm");
-
-	printf("***LOADING SRAM***\n%s\n",Name);
-	if ((SRAM_File = fopen (Name, "rb")) == 0)
-		return 0;
-	fread (SRAM, 64 * 1024, 1, SRAM_File);
-	fclose (SRAM_File);
-
-	strcpy (Str_Tmp, "SRAM loaded from ");
-	strcat (Str_Tmp, Name);
 	Put_Info (Str_Tmp, 2000);
 	return 1;
 }
@@ -2124,29 +2146,34 @@ int Prepare_Save_SRAM (void)
 	//~ printf("Got VMU at %c%i\n", 'a' + vmu->port, vmu->unit);
 	
 	int size_to_save = GetSRAMSize();
-	
 	printf("***PREPARING SAVE SRAM***\n%s (%i byte SRAM)\n", SaveName, size_to_save);
-
+	
 	GetSaveFileName();
-	
-	
+		
+	SaveHeader *shead = (void*)FileBuff;
 	
 	//Squeeze SRAM and add header
 	int cols = GetSRAMColumns(size_to_save);
+	
 	if (cols == 0) {
 		return 0;	//Nothing to save
 	} else if (cols == 1) {
 		size_to_save /= 2;
-		SRAMSqueeze(SRAM, FileBuff+3, size_to_save/2);
+		SRAMSqueeze(SRAM, shead->data, size_to_save);
 	} else if (cols == 2) {
 		size_to_save /= 2;
-		SRAMSqueeze(SRAM+1, FileBuff+3, size_to_save);
+		SRAMSqueeze(SRAM+1, shead->data, size_to_save);
 	} else {
-		memcpy(FileBuff+3, SRAM, size_to_save);
+		memcpy(shead->data, SRAM, size_to_save);
 	}
-	FileBuff[0] = cols;
-	FileBuff[1] = size_to_save & 0xff;
-	FileBuff[2] = (size_to_save >> 8) & 0xff;
+	
+	if (GLCurGame && size_to_save < GL_CalcSRAMSize(GLCurGame->SRAMSize)) {
+		size_to_save = GL_CalcSRAMSize(GLCurGame->SRAMSize);
+	}
+	
+	shead->version = 0;
+	shead->type = cols;
+	shead->size = size_to_save;
 	
 	printf("SRAM size after squeeze: %i\n", size_to_save);
 	
@@ -2155,10 +2182,17 @@ int Prepare_Save_SRAM (void)
 	//~ strncpy(vmupkg.app_id, SaveName, sizeof(vmupkg.app_id)-1);
 	strcpy(vmupkg.app_id, "Gens4All");
 	//~ strcpy(vmupkg.desc_long, "Gens4All");	//Game->Rom_Name_W
-	strncpy(vmupkg.desc_long, Game->Rom_Name_W, sizeof(vmupkg.desc_long)-1);
-	vmupkg.desc_long[sizeof(vmupkg.desc_long)-1] = 0;
-	strncpy(vmupkg.desc_short, Game->Rom_Name_W, sizeof(vmupkg.desc_short)-1);
-	vmupkg.desc_short[sizeof(vmupkg.desc_short)-1] = 0;
+	if (GLCurGame) {
+		strncpy(vmupkg.desc_long, GetCurGameSaveTitle(), sizeof(vmupkg.desc_long)-1);
+		vmupkg.desc_long[sizeof(vmupkg.desc_long)-1] = 0;
+		strncpy(vmupkg.desc_short, GetCurGameSaveVMUTitle(), sizeof(vmupkg.desc_short)-1);
+		vmupkg.desc_short[sizeof(vmupkg.desc_short)-1] = 0;
+	} else {
+		strncpy(vmupkg.desc_long, Game->Rom_Name_W, sizeof(vmupkg.desc_long)-1);
+		vmupkg.desc_long[sizeof(vmupkg.desc_long)-1] = 0;
+		strncpy(vmupkg.desc_short, Game->Rom_Name_W, sizeof(vmupkg.desc_short)-1);
+		vmupkg.desc_short[sizeof(vmupkg.desc_short)-1] = 0;
+	}
 	vmupkg.icon_cnt = 0;
 	vmupkg.icon_anim_speed = 0;
 	vmupkg.eyecatch_type = VMUPKG_EC_NONE;
@@ -2228,95 +2262,6 @@ int Save_SRAM (void)
 	}
 	return 0;
 }
-#if 0
-int Save_SRAM (void)
-{
-	maple_device_t *vmu = maple_enum_type(0, MAPLE_FUNC_MEMCARD);
-	if (vmu == NULL)
-		return 0;
-	
-	printf("Got VMU at %c%i\n", 'a' + vmu->port, vmu->unit);
-	
-	int size_to_save = GetSRAMSize();
-	
-	printf("***SAVING SRAM***\n%s (%i byte SRAM)\n", SaveName, size_to_save);
-
-	GetSaveFileName();
-	
-	int freespace = vmufs_free_blocks(vmu);
-	
-	//Squeeze SRAM and add header
-	unsigned char FileBuff[64*1024+3];
-	int cols = GetSRAMColumns(size_to_save);
-	if (cols == 0) {
-		return 0;	//Nothing to save
-	} else if (cols == 1) {
-		size_to_save /= 2;
-		SRAMSqueeze(SRAM, FileBuff+3, size_to_save/2);
-	} else if (cols == 2) {
-		size_to_save /= 2;
-		SRAMSqueeze(SRAM+1, FileBuff+3, size_to_save);
-	} else {
-		memcpy(FileBuff+3, SRAM, size_to_save);
-	}
-	FileBuff[0] = cols;
-	FileBuff[1] = size_to_save & 0xff;
-	FileBuff[2] = (size_to_save >> 8) & 0xff;
-	
-	printf("SRAM size after squeeze: %i\n", size_to_save);
-	
-	//Make header
-	vmu_pkg_t vmupkg;
-	//~ strncpy(vmupkg.app_id, SaveName, sizeof(vmupkg.app_id)-1);
-	strcpy(vmupkg.app_id, "Gens4All");
-	//~ strcpy(vmupkg.desc_long, "Gens4All");	//Game->Rom_Name_W
-	strncpy(vmupkg.desc_long, Game->Rom_Name_W, sizeof(vmupkg.desc_long)-1);
-	vmupkg.desc_long[sizeof(vmupkg.desc_long)-1] = 0;
-	strncpy(vmupkg.desc_short, Game->Rom_Name_W, sizeof(vmupkg.desc_short)-1);
-	vmupkg.desc_short[sizeof(vmupkg.desc_short)-1] = 0;
-	vmupkg.icon_cnt = 0;
-	vmupkg.icon_anim_speed = 0;
-	vmupkg.eyecatch_type = VMUPKG_EC_NONE;
-	vmupkg.data_len = size_to_save+3;
-	memset(vmupkg.icon_pal, 0, sizeof(vmupkg.icon_pal));
-	vmupkg.icon_data = 0;
-	vmupkg.eyecatch_data = 0;
-	vmupkg.data = FileBuff;
-	
-	uint8_t *vmudst;
-	int dstsize;
-	vmu_pkg_build(&vmupkg, &vmudst, &dstsize);
-	
-	//Check for space required
-	int blocks_needed = (dstsize + 511) / 512 - FileSizeBlocks(SaveName);
-	if (blocks_needed > freespace) {
-		printf("No free space\n");
-		if (!SAVE_TO_PC)
-			goto failure;
-	}
-	
-	
-	printf("Calc %i byte SRAM\n",  GetSRAMSize());
-	printf("%i block size, %i extra blocks needed, %i blocks free\n", (dstsize + 511) / 512, blocks_needed, freespace);
-	printf("VMU file size %i\n", dstsize);
-	FILE *SRAM_File = 0;
-	if ((SRAM_File = fopen (SaveName, "wb")) == 0)
-		goto failure;
-
-	fwrite (vmudst, dstsize, 1, SRAM_File);
-	fclose (SRAM_File);
-
-	strcpy (Str_Tmp, "SRAM saved in ");
-	strcat (Str_Tmp, SaveName);
-	Put_Info (Str_Tmp, 2000);
-	
-	free(vmudst);
-	return 1;
-failure:
-	free(vmudst);
-	return 0;
-}
-#endif
 int
 Save_SRAM_FS (void)
 {
