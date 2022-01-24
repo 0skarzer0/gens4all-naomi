@@ -417,6 +417,7 @@ int Get_Rom (char *rom_file)
 
 	printf("Loading rom %s... ", Name);
 	fflush(stdout);
+	wdPause();
 	if ((sys >> 1) < 3)		// Have to load a rom
 	{
 		if ((!stricmp ("zip", &Name[strlen (Name) - 3]))
@@ -433,6 +434,8 @@ int Get_Rom (char *rom_file)
 			Game = Load_Rom (Name, sys & 1);
 		}
 	}
+	wdPet();
+	wdResume();
 	printf("done.\n");
 	fflush(stdout);
 	switch (sys >> 1)

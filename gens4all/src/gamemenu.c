@@ -33,7 +33,7 @@ static const char *MyStr(const struct MenuItem *mi) {
 	return mi->string;
 }
 	
-static float line(int y) {
+static float line(float y) {
 	return 25 + y * emufont->lineheight;
 }
 
@@ -336,7 +336,10 @@ static void PrevControlSetting() {
 static void ExitController() {
 	MenuMode = &MainMenu;
 }
-
+static void ControllerMenu();
+static void EnterControllerMenu() {
+	MenuMode = &ControllerMenu;
+}
 
 static void ChangeControls(const struct MenuItem *mi) {
 	SetControls(mi->idx);
@@ -352,10 +355,67 @@ static const char *ControlStr2(const struct MenuItem *mi) {
 }
 static int ControllerSelection = 0;
 
+static int ShownController;
+static const char *ShownControllerName;
+int print_buttonmap(float y, const char *dclabel, int genbutton) {
+	static const char *buttons[] = {
+		"Null", "A", "B", "C", "X", "Y", "Z", "Start", "Mode",
+		"Up", "Down", "Left", "Right"
+	};
+	char mapbuff[100];
+	
+	if (genbutton < 0 || genbutton >= GENC_COUNT) {
+		printf("Bad genbutton %i\n", genbutton);
+		return y;
+	}
+	
+	if (genbutton == 0)
+		return y;
+	
+	sprintf(mapbuff, "%s -> %s", dclabel, buttons[genbutton]);
+	puts_center(emufont, y, mapbuff);
+	return y + emufont->lineheight;
+}
+
+static void ShowController() {
+	
+	if (UICont->c.b || UICont->c.y) {
+		EnterControllerMenu();
+	} else if (UICont->c.s || UICont->c.au) {
+		CloseGameMenu();
+	}
+	
+	draw_rect_wh(24, 24, 320-48,240-48, 400, MENU_BG_COLOR, sqPrepare((void*)PVR_TA_INPUT));
+	
+	EmuInputButtons *selcont = contsettings[ShownController].mapping;
+	
+	int i;
+	puts_center(emufont, line(0.5), ShownControllerName);
+	puts_center(emufont, line(2.5), "DC -> Gen");
+	float y = line(4.5);
+	
+	if (selcont != &ContMap6to6) {
+		y = print_buttonmap(y, "A", selcont->a);
+		y = print_buttonmap(y, "B", selcont->b);
+		y = print_buttonmap(y, "X", selcont->x);
+		y = print_buttonmap(y, "Y", selcont->y);
+		y = print_buttonmap(y, "L", selcont->sl);
+		y = print_buttonmap(y, "R", selcont->sr);
+		y = print_buttonmap(y, "Analog-Down", selcont->ad);
+	} else {
+		y = print_buttonmap(y, "A", selcont->a);
+		y = print_buttonmap(y, "B", selcont->b);
+		y = print_buttonmap(y, "C", selcont->c);
+		y = print_buttonmap(y, "X", selcont->x);
+		y = print_buttonmap(y, "Y", selcont->y);
+		y = print_buttonmap(y, "Z", selcont->z);
+		y = print_buttonmap(y, "R", selcont->sr);
+	}
+}
 static void ControllerMenu() {
 	static const struct MenuItem menu[] = {
-		{"", 0, &MyStr, 0, 0, 0},
 		{"Controls", 0, &MyStr, 0, 0, 0},
+		{"(Y: Show)", 0, &MyStr, 0, 0, 0},
 		{"", 0, &MyStr, 0, 0, 0},
 	
 		{"3 Button", 1, &ControlStr2, &ChangeControls, 0, 0, 0},
@@ -367,19 +427,21 @@ static void ControllerMenu() {
 		{"", 0, &MyStr, 0, 0, 0},
 		{"Back", 1, &MyStr, &ExitController, 0, 0},
 	};
-	if (UICont->c.b)
+	if (UICont->c.y) {
+		MenuMode = &ShowController;
+		ShownControllerName = menu[ControllerSelection].string;
+		ShownController = menu[ControllerSelection].idx;
+	} else if (UICont->c.b) {
 		ExitController();
-	else if (UICont->c.s || UICont->c.au)
+	} else if (UICont->c.s || UICont->c.au) {
 		CloseGameMenu();
-	
+	}
 	//Draw shadow
 	draw_rect_wh(24, 24, 320-48,240-48, 400, MENU_BG_COLOR, sqPrepare((void*)PVR_TA_INPUT));
 	
 	ProcessMenu(menu, ARR_SIZE(menu), &ControllerSelection, 1);
 }
-static void EnterControllerMenu() {
-	MenuMode = &ControllerMenu;
-}
+
 
 ////////////////////////////////////////////////////////////////////////////
 //Render setting
@@ -408,6 +470,14 @@ static const char *NDrawStr(const struct MenuItem *mi) {
 static void NUpdateDrawSetting() {
 	MapBDrawFuncId = ndrawsettings[NDrawSetting].drawb;
 	MapADrawFuncId = ndrawsettings[NDrawSetting].drawa;
+}
+void SetDrawSetting(int setting) {
+	if (setting < 0)
+		setting = 0;
+	if (setting >= ARR_SIZE(ndrawsettings))
+		setting = 0;
+	NDrawSetting = setting;
+	NUpdateDrawSetting();
 }
 static void NNextDrawSetting() {
 	if (Sonic_2_Auto_Render)

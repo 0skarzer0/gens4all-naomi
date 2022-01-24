@@ -205,11 +205,12 @@ void gpdc_snd_stream_stop() {
 	do { \
 		if (!irq_inside_int()) \
 			OLD = irq_disable(); \
-			irq_enable(); \
 		/* suspend any G2 DMA here... */ \
 		while((*(volatile unsigned int *)0xa05f688c) & 0x20) \
 			; \
 	} while(0)
+
+			//~ irq_enable(); \
 
 #define G2_UNLOCK(OLD) \
 	do { \

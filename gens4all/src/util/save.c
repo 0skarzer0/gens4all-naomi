@@ -459,6 +459,110 @@ others
 
 */
 
+unsigned char IntToBCD(int val) {
+	return ((val / 10) << 4) | (val % 10);
+}
+unsigned char CalcDOW(int d, int m, int y) {
+	return (d += m < 3 ? y-- : y - 2, 23*m/9 + d + 4 + y/4- y/100 + y/400)%7;
+}
+
+void DCTimeConvert(unsigned long int seconds, vmu_timestamp_t *dst)
+{
+	//https://www.geeksforgeeks.org/convert-unix-timestamp-to-dd-mm-yyyy-hhmmss-format/
+	long int oseconds = seconds;
+	// Save the time in Human
+	// readable format
+
+	// Number of days in month
+	// in normal year
+	int daysOfMonth[] = { 31, 28, 31, 30, 31, 30,
+		31, 31, 30, 31, 30, 31 };
+
+	long int currYear, daysTillNow, extraTime,
+	extraDays, index, date, month, hours,
+	minutes, secondss, flag = 0;
+
+	// Calculate total days unix time T
+	daysTillNow = seconds / (24 * 60 * 60);
+	extraTime = seconds % (24 * 60 * 60);
+	currYear = 1970;
+ 
+	// Calculating current year
+	while (daysTillNow >= 365) {
+		if (currYear % 400 == 0 || (currYear % 4 == 0 && currYear % 100 != 0)) {
+			daysTillNow -= 366;
+		} else {
+			daysTillNow -= 365;
+		}
+		currYear += 1;
+	}
+ 
+	// Updating extradays because it
+	// will give days till previous day
+	// and we have include current day
+	extraDays = daysTillNow + 1;
+
+	if (currYear % 400 == 0 || (currYear % 4 == 0 && currYear % 100 != 0))
+		flag = 1;
+ 
+	// Calculating MONTH and DATE
+	month = 0, index = 0;
+	if (flag == 1) {
+		while (1) {
+			if (index == 1) {
+				if (extraDays - 29 < 0)
+					break;
+				month += 1;
+				extraDays -= 29;
+			} else {
+				if (extraDays - daysOfMonth[index] < 0)
+					break;
+				month += 1;
+				extraDays -= daysOfMonth[index];
+			}
+			index += 1;
+		}
+	} else {
+		while (1) {
+			if (extraDays - daysOfMonth[index] < 0)
+				break;
+			month += 1;
+			extraDays -= daysOfMonth[index];
+			index += 1;
+		}
+	}
+ 
+	// Current Month
+	if (extraDays > 0) {
+		month += 1;
+		date = extraDays;
+	} else {
+		if (month == 2 && flag == 1)
+			date = 29;
+		else {
+			date = daysOfMonth[month - 1];
+		}
+	}
+	
+	// Calculating HH:MM:YYYY
+	hours = extraTime / 3600;
+	minutes = (extraTime % 3600) / 60;
+	secondss = (extraTime % 3600) % 60;
+	
+	dst->cent = IntToBCD(currYear / 100);
+	dst->year = IntToBCD(currYear % 100);
+	dst->month = IntToBCD(month);
+	dst->day = IntToBCD(date);
+	dst->hour = IntToBCD(hours);
+	dst->min = IntToBCD(minutes);
+	dst->sec = IntToBCD(secondss);
+	dst->dow = CalcDOW(date, month, currYear); //dow;
+	
+	
+	//~ tPrintf("%i-%i-%i %i:%02i:%02i (%08x)", currYear, month, date, hours, minutes, secondss, oseconds);
+}
+
+
 void
 Import_Genesis (unsigned char *Data)
 {
@@ -2205,7 +2309,11 @@ int Prepare_Save_SRAM (void)
 	if (vmu_pkg_build(&vmupkg, &VMUData, &VMUDataSize)) {
 		assert(0);
 	}
-	
+	/*
+	vmu_timestamp_t replacetime;
+	DCTimeConvert(rtc_unix_secs(), &replacetime);
+	vmufs_file_write(
+	*/
 	//Check for space required
 	Blocks_Required = (VMUDataSize + 511) / 512 - FileSizeBlocks(SaveName);
 	//If the SRAM zeroes out so it shrinks, don't shrink VMU file

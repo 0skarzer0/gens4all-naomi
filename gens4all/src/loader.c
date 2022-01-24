@@ -10,6 +10,7 @@
 #include "pvrvdp/npvr_vertex.h"
 #include "pvrvdp/sq.h"
 #include "util/save.h"
+#include "../pvrvdp/pvr_rend.h"
 
 #define LOADER_MODE game_list
 
@@ -101,8 +102,8 @@ static void read_cont() {
 static struct BMFFont * font;
 static struct BMFFont * titlefont;
 
-#define MAXDIRENTRIES	(1000)
-#define NAMEBUFSIZE	(100*1024)
+#define MAXDIRENTRIES	(1750)
+#define NAMEBUFSIZE	(175*1024)
 
 typedef struct {
 	int is_dir;
@@ -117,8 +118,8 @@ static GameListHeader *gl = (GameListHeader*)&dirnamebuff;
 static GameListEntry *games = ((GameListHeader*)&dirnamebuff)->games;
 
 #define MAX_DIRNAME	500
-//~ static char curdir[MAX_DIRNAME] = "/";
-static char curdir[MAX_DIRNAME] = "/pc/home/alex/Emu/Genesis/sm";
+static char curdir[MAX_DIRNAME] = "/";
+//~ static char curdir[MAX_DIRNAME] = "/pc/home/alex/Emu/Genesis/sm";
 //~ static char curdir[MAX_DIRNAME] = "/pc/home/alex/Emu/Genesis";
 
 static int IsDir(const char *name) {
@@ -165,8 +166,8 @@ static void LoadGameList(const char *list) {
 	}
 	
 	assert(memcmp(gl->fourcc, GameListHeaderFourCC, 4) == 0);
-	assert(gl->version == 1);
-	assert(gl->game_cnt < 500);
+	assert(gl->version == 2);
+	assert(gl->game_cnt < MAXDIRENTRIES);
 	assert(gl->game_cnt > 0);
 	
 	//Adjust string pointers
@@ -399,14 +400,14 @@ static void DrawGameList() {
 
 static struct {
 	int x, y;
-} IndexSelection;
+} IndexSelection = {2, 2};
 static const char * IndexOptions[] = {
-	"#", "A", "B", "C", "D", "E", "F", 
+	"!", "#", "A", "B", "C", "D", "E", "F", 
 	"G", "H", "I", "J", "K", "L", "M",
 	"N", "O", "P", "Q", "R", "S", "T", 
 	"U", "V", "W", "X", "Y", "Z", " "};
 
-#define IDX_SIZE	27
+#define IDX_SIZE	29
 #define IDX_COLS	6
 #define IDX_ROWS	5
 #define IDX_LAST_ROW	(IDX_ROWS-1)
@@ -504,7 +505,7 @@ static void RunGame(const char *fname) {
 	Gens_Running = 1;
 	
 	//~ printf("Playing \"%s\"\n", GetRomName(cursorpos));
-	
+	printf("Curdir: %s\n", curdir);
 	extern int run(const char *rom_filename);
 	int runresult = run(fname);
 	
@@ -533,9 +534,25 @@ static void game_list() {
 	
 	//Start a game
 	if (click.a) {
+		if (GetRomName(cursorpos)[0] == 0)
+			return;
+		
+		if (games[cursorpos].GameList) {
+			LoadGameList(GetRomName(cursorpos));
+			cursorpos = 0;
+			viewtop = 0;
+			return;
+		}
+		
 		extern void SetControls(int controlidx);
 		SetControls(games[cursorpos].DefaultControls);
 		GLCurGame = games + cursorpos;
+		
+		extern void SetDrawSetting(int setting);
+		SetDrawSetting(games[cursorpos].ScrollMode);
+		
+		extern int Enable_Shadow_Highlight;
+		Enable_Shadow_Highlight = games[cursorpos].Shadow == GH_SH_ON;
 		
 		RunGame(GetRomName(cursorpos));
 		return;
@@ -667,9 +684,12 @@ static void update_save() {
 			return;
 		}
 	} else {
-		if (click.b || click.a || click.s) {
+		if (click.a) {
 			Abort_Save_SRAM();
-			loader_mode = LOADER_MODE;
+			Prepare_Save_SRAM();
+		} else if (click.b) {
+			Abort_Save_SRAM();
+			loader_mode = browser_mode;
 		}
 	}
 	
@@ -689,7 +709,8 @@ static void update_save() {
 	if (Blocks_Required <= Destination_Free_Space) {
 		puts_center(font, 400, "(A) Save   (B) Don't Save");
 	} else {
-		puts_center(font, 400, "Not enough space to save");
+		puts_center(font, 350, "Not enough space to save");
+		puts_center(font, 400, "(A) Retry   (B) Don't Save");
 	}
 	//~ BMFprintf(font, left + dirmarkwidth, y, 1, " %s", direntries[i].name);
 	
@@ -703,8 +724,8 @@ static void go_to_filelist() {
 	LoadDir(curdir);
 }
 static void go_to_gamelist() {
-	//~ printf("Using game list from: "GAMELISTFNAME"\n");
-	//~ fflush(stdout);
+	printf("Using game list from: "GAMELISTFNAME"\n");
+	fflush(stdout);
 	FILE *f = fopen(GAMELISTFNAME, "r");
 	//~ perror("");
 	//~ printf("F: %p\n", f);
@@ -728,6 +749,7 @@ static void exit_title_screen() {
 }
 
 static void title_screen() {
+	extern int DisableInterlace;
 	static float anim = 0;
 	int i;
 	
@@ -739,6 +761,8 @@ static void title_screen() {
 		}
 		return;
 	}
+	if (click.y && vid_check_cable() != CT_VGA)
+		DisableInterlace = !DisableInterlace;
 	
 	anim += 0.05;
 	if (anim > (M_PI * 4))
@@ -760,10 +784,15 @@ static void title_screen() {
 	
 	//Version
 	puts_center(font, 180, "Accelerated Renderer");
-	puts_center(font, 180 + font->lineheight, "Release 4.0");
+	puts_center(font, 180 + font->lineheight, "Release 4.3");
 	
 	//Press Start
 	puts_center(font, 340, "Press Start");
+	
+	if (hold.a)
+		puts_center(font, 180+font->lineheight*2.5, "File Browser");
+	if (DisableInterlace)
+		puts_center(font, 180+font->lineheight*3.5, "Interlace Off");
 	
 	//Background grid
 	int x,y, size = 40;

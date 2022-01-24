@@ -92,7 +92,7 @@ static void * watchdog(void *v) {
 			if (sleeptime > WATCHDOG_TIME_MS) {
 				printf("At PC: %08X, PR: %08X\n",(unsigned int)parentthd->context.pc,(unsigned int)parentthd->context.pr);
 				fflush(stdout);
-				arch_panic("Watchdog timeout\n");
+				//~ arch_panic("Watchdog timeout\n");
 			}
 		}
 	} while (1);

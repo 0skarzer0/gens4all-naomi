@@ -15,6 +15,7 @@
 //#include <SDL_dreamcast.h>
 #endif
 
+int DisableInterlace;
 
 #ifndef DEBUG_VDP
 SDL_Surface *surface = 0;
@@ -151,6 +152,12 @@ int Init_Video_SubSystem(int w, int h, int flags)
 		#ifndef VDP_HIRES
 			vid_init(DM_320x240, PM_RGB565);
 		#endif
+		
+		if (DisableInterlace) {
+			volatile int *sync = (int*)0xa05f80d0;
+			*sync = *sync & ~0x10;
+			PVR_SET(PVR_SCALER_CFG, 0x400);
+		}
 		
 	} else  {
 		vid_init(DM_320x240, PM_RGB888);

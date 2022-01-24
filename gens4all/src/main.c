@@ -924,7 +924,7 @@ static void * watchdog(void *v) {
 				}
 				printf("\n");
 			}
-			if (sleeptime > 200) {
+			if (sleeptime == 200) {
 				printf("At PC: %08X, PR: %08X\n",(unsigned int)parentthd->context.pc,(unsigned int)parentthd->context.pr);
 				printf("Z80 Clock %i\n", raze_clock_counter);
 				int i;
@@ -933,8 +933,9 @@ static void * watchdog(void *v) {
 					if ((i % 4) == 3)
 						printf("\n");
 				}
+				printf("\n");
 				fflush(stdout);
-				arch_panic("Watchdog timeout\n");
+				//~ arch_panic("Watchdog timeout\n");
 			}
 		}
 	} while (1);
@@ -1080,10 +1081,13 @@ int main (int argc, char *argv[])
 	
 	watchdog_init();
 	wdInit();
+	watchdog_pause();
+	wdPause();
 	pfSampInit(10000);
 	printf("CCR: %08x\n", *(int*)0xFF00001c);
 	printf("RD: %i\n", sizeof(RasterData));
-	
+	fflush(stdout);
+	//~ while(1);
 #if !SKIPLOADER
 	extern void run_loader();
 	run_loader();
@@ -1141,6 +1145,8 @@ struct BMFFont * emufont;
 
 int run(const char *rom_filename)
 {
+	printf("Running rom: %s\n", rom_filename);
+	fflush(stdout);
 	if (Get_Rom((char *)rom_filename) == -1)
 		return -1;
 	

@@ -244,6 +244,34 @@ prof_start(PROF_VRENDER);
 	//Render screen
 	pvr_scene_begin();
 		void *pc = sqPrepare((void*)PVR_TA_INPUT);
+		
+		pvr_list_begin(PVR_LIST_TR_POLY);
+		LockList(PC_BLEND_POLY);
+	//~ }
+		if (Paused) {
+			void *pc = sqPrepare((void*)PVR_TA_INPUT);
+			
+			{ //Force transparent list for normal KOS PVR driver
+			pvr_context spr;
+			pc_set_default_sprite(&spr);
+			pc_set_list(&spr, PC_BLEND_POLY);
+			sqCopy32(pc, &spr);
+			}
+			
+			//Process and draw in-game pause menu
+			extern void RunGameMenu();
+			RunGameMenu();
+		}
+		
+		if (Show_FPS)
+			BMFprintf(emufont, 295,0,400, "%.1f", CurFPS);
+		
+		
+		//~ if (Enable_Sprites)
+			//~ NDrawSprites();
+		
+		pvr_list_finish();
+		
 	//*	
 		//Cover up any VDP rendering with the bg color if the screen is off
 		pvr_list_begin(PVR_LIST_OP_POLY);
@@ -418,32 +446,7 @@ prof_start(PROF_VRENDER);
 		}
 	//~ if (PVRVDP_TARGET_LIST == PC_PUNCHTHROUGH) {
 		pvr_list_finish();
-		pvr_list_begin(PVR_LIST_TR_POLY);
-		LockList(PC_BLEND_POLY);
-	//~ }
-		if (Paused) {
-			void *pc = sqPrepare((void*)PVR_TA_INPUT);
-			
-			{ //Force transparent list for normal KOS PVR driver
-			pvr_context spr;
-			pc_set_default_sprite(&spr);
-			pc_set_list(&spr, PC_BLEND_POLY);
-			sqCopy32(pc, &spr);
-			}
-			
-			//Process and draw in-game pause menu
-			extern void RunGameMenu();
-			RunGameMenu();
-		}
 		
-		if (Show_FPS)
-			BMFprintf(emufont, 295,0,400, "%.1f", CurFPS);
-		
-		
-		//~ if (Enable_Sprites)
-			//~ NDrawSprites();
-		
-		pvr_list_finish();
 	pvr_scene_finish();
 	
 prof_end(PROF_VRENDER);

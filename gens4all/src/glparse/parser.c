@@ -23,7 +23,7 @@ typedef struct {
 } ParserEntry;
 
 GGL_Index listindices[GGL_NUM_INDICIES+1];
-ParserEntry pes[1000];
+ParserEntry pes[5000];
 int cur_entry;
 char GameDir[GGL_MAX_DIR_LENGTH+1] = "/cd/";
 
@@ -55,6 +55,7 @@ SwitchEntry multitap[] = {
 };
 SwitchEntry controls[] = {
 	{"3button", DCON_3BUTTON},
+	{"3buttonrev", DCON_3BUTTON_REV},
 	{"6button", DCON_6BUTTON},
 	{"lostv6", DCON_6BUTTON_LV},
 	{"sf26", DCON_6BUTTON_SF2},
@@ -85,6 +86,18 @@ SwitchEntry savesize[] = {
 	{"32k", 16},
 	{"65536", 17},
 	{"64k", 17},
+};
+SwitchEntry scrollmode[] = {
+	{"line", GH_LINE},
+	{"line_a4", GH_LINE_A4},
+	{"line_b4", GH_LINE_B4},
+	{"cell", GH_CELL},
+	{"cell_a4", GH_CELL_A4},
+	{"cell_b4", GH_CELL_B4},
+};
+SwitchEntry shadows[] = {
+	{"on", 0},
+	{"off", 1},
 };
 
 char * slurp(const char *fname, size_t *len) {
@@ -164,15 +177,17 @@ void ParseList(const char *list, size_t listsize) {
 			tokNext(&t);
 			if (tokTokenLen(&t) == 1) {
 				int l = tokToken(&t)[0];
-				if (!isalpha(l) && l != '#') {
+				if (!isalpha(l) && l != '#' && l != '!') {
 					printf("Didn't get a letter\n");
 					exit(-1);
 				}
 				
 				l = tolower(l);
 				if (l >= 'a' && l <= 'z')
-					l = l - 'a' + 1;
-				else
+					l = l - 'a' + 2;
+				else if (l == '#')
+					l = 1;
+				else if (l == '!')
 					l = 0;
 				
 				if (listindices[l] != -1) {
@@ -260,6 +275,12 @@ void ParseList(const char *list, size_t listsize) {
 		} else if (tokEquals(&t, "Controls:")) {
 			//Controls
 			curpe->gle.DefaultControls = GetTableDef0(&t, controls, ARR_SIZE(controls));
+		} else if (tokEquals(&t, "Scroll:")) {
+			curpe->gle.ScrollMode = GetTableDef0(&t, scrollmode, ARR_SIZE(scrollmode));
+		} else if (tokEquals(&t, "Shadow:")) {
+			curpe->gle.Shadow = GetTableDef0(&t, shadows, ARR_SIZE(shadows));
+		} else if (tokEquals(&t, "Switcher")) {
+			curpe->gle.GameList = 1;
 		} else if (!tokAtEnd(&t)) {
 			printf("****Unknown token: \"%.*s\"****\n", tokPrint(&t));
 		}
@@ -299,7 +320,7 @@ void WriteList(FILE *out) {
 	GameListHeader head;
 	
 	memcpy(head.fourcc, "G4AL", 4);
-	head.version = 1;
+	head.version = 2;
 	head.game_cnt = entrycnt;
 	memcpy(head.index, listindices, sizeof(GGL_Index) * GGL_NUM_INDICIES);
 	strncpy(head.dir, GameDir, GGL_MAX_DIR_LENGTH);

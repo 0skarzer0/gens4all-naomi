@@ -5,7 +5,7 @@
 
 #define GGL_MAX_DIR_LENGTH	(100)
 
-#define GGL_NUM_INDICIES	(27)	//1 per letter, plus one for numbers
+#define GGL_NUM_INDICIES	(28)	//1 per letter, plus one for numbers, and one for special
 typedef short GGL_Index;
 
 enum GL_SampleRate {
@@ -48,6 +48,18 @@ enum GL_Hacks {
 	GH_SCREEN_OFF_RENDER_HACK,
 	GH_TOTAL_HACKS
 };
+enum GL_ScrollMode {
+	GH_LINE,
+	GH_LINE_A4,
+	GH_LINE_B4,
+	GH_CELL,
+	GH_CELL_A4,
+	GH_CELL_B4,
+};
+enum GL_ShadowHi {
+	GH_SH_ON,
+	GH_SH_OFF,
+};
 
 typedef struct {
 	uint32_t SampleRate : 3;	//GL_SampleRate
@@ -56,6 +68,9 @@ typedef struct {
 	uint32_t Hacks : GH_TOTAL_HACKS;
 	uint32_t Multitap : 2;	//GL_Multitap
 	uint32_t DefaultControls : 5;	//GL_DefControls
+	uint32_t ScrollMode : 3;	//GL_ScrollMode
+	uint32_t Shadow : 1;	//GL_ShadowHi
+	uint32_t GameList : 1;	//This switches game lists
 	//~ uint32_t Unselectable : 1;
 	uint32_t  : 0;
 	char SaveExtension[3];
