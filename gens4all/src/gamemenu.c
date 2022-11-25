@@ -2,6 +2,7 @@
 #include "vdp_rend.h"
 #include "blit.h"
 #include "input.h"
+#include "rom.h"
 #include "../../../libsh4/sh4.h"
 #include "../../../libsh4/sq.h"
 #include "../pvrvdp/npvr_vertex.h"
@@ -19,7 +20,9 @@
 
 #define ARR_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define LINE_HEIGHT	(emufont->lineheight)
-struct MenuItem {
+
+struct MenuItem 
+{
 	const char *string;
 	int selectable;
 	const char * (*getstr)(const struct MenuItem *mi);
@@ -29,61 +32,81 @@ struct MenuItem {
 	int idx;
 };
 
-static const char *MyStr(const struct MenuItem *mi) {
+static const char *MyStr(const struct MenuItem *mi) 
+{
 	return mi->string;
 }
 	
-static float line(float y) {
+static float line(float y) 
+{
 	return 25 + y * emufont->lineheight;
 }
 
-static int string_length_pixels(struct BMFFont *font, const char * str) {
+static int string_length_pixels(struct BMFFont *font, const char * str) 
+{
 	int len = strlen(str);
 	return BMFStringWidth(font, AsciiReader, str, len);
 }
 
-static void puts_center(struct BMFFont *font, float y, const char * str) {
+static void puts_center(struct BMFFont *font, float y, const char * str) 
+{
 	BMFputs(font, CENTER_X - string_length_pixels(font, str)/2, y, 500, AsciiReader, str);
 }
-static void ProcessMenu(const struct MenuItem *menu, int menusize, int *selection, float y) {
+
+static void ProcessMenu(const struct MenuItem *menu, int menusize, int *selection, float y) 
+{
 	int sel = *selection;
 	
 	//Make sure selection is in bounds and on a selectable item
 	sel = sel < 0 ? 0 : sel;
 	sel = sel >= menusize ? 0 : sel;
-	while(!menu[sel].selectable) {
+	while(!menu[sel].selectable) 
+	{
 		sel++;
 		sel = sel >= menusize ? 0 : sel;
 	}
 	
 	//Move selection according to input
-	if (UICont->c.d) {
+	if (UICont->c.d) 
+	{
 		sel++;
 		sel = sel >= menusize ? 0 : sel;
-		while(!menu[sel].selectable) {
+		while(!menu[sel].selectable) 
+		{
 			sel++;
 			sel = sel >= menusize ? 0 : sel;
 		}
 	}
-	if (UICont->c.u) {
+	
+	if (UICont->c.u) 
+	{
 		sel--;
-		while(!menu[sel].selectable) {
+		while(!menu[sel].selectable) 
+		{
 			sel--;
 			sel = sel < 0 ? menusize-1 : sel;
 		}
 	}
 	
 	//Activate selection
-	if (UICont->c.a) {
-		if (menu[sel].picked != NULL) {
+	if (UICont->c.a) 
+	{
+		if (menu[sel].picked != NULL) 
+		{
 			menu[sel].picked(menu+sel);
 		}
-	} else if (UICont->c.l) {
-		if (menu[sel].left != NULL) {
+	} 
+	else if (UICont->c.l) 
+	{
+		if (menu[sel].left != NULL) 
+		{
 			menu[sel].left(menu+sel);
 		}
-	} else if (UICont->c.r) {
-		if (menu[sel].right != NULL) {
+	} 
+	else if (UICont->c.r) 
+	{
+		if (menu[sel].right != NULL) 
+		{
 			menu[sel].right(menu+sel);
 		}
 	}
@@ -94,7 +117,8 @@ static void ProcessMenu(const struct MenuItem *menu, int menusize, int *selectio
 	draw_rect_wh(24, line(sel)-3 + y, 320-48, emufont->lineheight, 420, 0x80ff0000, pc);
 	//Draw menu text
 	int i;
-	for(i = 0; i < menusize; i++) {
+	for(i = 0; i < menusize; i++) 
+	{
 		puts_center(emufont, line(i) + y, menu[i].getstr(menu+i));
 	}
 	
@@ -106,7 +130,8 @@ static void ProcessMenu(const struct MenuItem *menu, int menusize, int *selectio
 static void MainMenu();
 static void (*MenuMode)() = &MainMenu;
 
-void BringUpGameMenu() {
+void BringUpGameMenu() 
+{
 	Paused = 1;
 	//~ MenuMode = &MainMenu;
 	//~ Block_Hold_And_Click();
@@ -114,13 +139,15 @@ void BringUpGameMenu() {
 	//~ Block_Click();
 }
 
-void CloseGameMenu() {
+void CloseGameMenu() 
+{
 	Paused = 0;
 	//~ MenuMode = &MainMenu;
 	Block_Click();
 }
 
-static void ExitGame() {
+static void ExitGame() 
+{
 	dbgf("Exit\n");
 	Gens_Running = 0;
 	extern int Reset_Input_Lockout;
@@ -128,7 +155,8 @@ static void ExitGame() {
 }
 
 static void VideoMenu();
-static void EnterVideoMenu() {
+static void EnterVideoMenu() 
+{
 	MenuMode = &VideoMenu;
 }
 
@@ -138,26 +166,40 @@ extern int Show_Timing;
 extern int Show_Rasters;
 extern int Enable_Shadow_Highlight;
 extern int Show_FPS;
-static void ToggleProf() {
+
+static void ToggleProf() 
+{
 	Show_Timing = !Show_Timing;
 }
-static void ToggleShowRaster() {
+
+static void ToggleShowRaster() 
+{
 	Show_Rasters = !Show_Rasters;
 }
-static void ToggleRenderPoint() {
+
+static void ToggleRenderPoint() 
+{
 	if (Render_Point <= 1)
 		Render_Point = !Render_Point;
 }
-static void ToggleSH() {
+
+static void ToggleSH() 
+{
 	Enable_Shadow_Highlight = !Enable_Shadow_Highlight;
 }
-static const char *ProfStr(const struct MenuItem *mi) {
+
+static const char *ProfStr(const struct MenuItem *mi) 
+{
 	return Show_Timing ? "Perf. Timing (Shown)" : "Perf. Timing (Hidden)";
 }
-static const char *ShowRasterStr(const struct MenuItem *mi) {
+
+static const char *ShowRasterStr(const struct MenuItem *mi) 
+{
 	return Show_Rasters ? "Raster Events (Shown)" : "Raster Events (Hidden)";
 }
-static const char *RPointStr(const struct MenuItem *mi) {
+
+static const char *RPointStr(const struct MenuItem *mi) 
+{
 	if (Render_Point == 0)
 		return "Rendering at VBlank Start";
 	if (Render_Point == 1)
@@ -166,13 +208,19 @@ static const char *RPointStr(const struct MenuItem *mi) {
 		return "Rendering at first blank";
 	return "Rendering at ???";
 }
-static const char *SHStr(const struct MenuItem *mi) {
+
+static const char *SHStr(const struct MenuItem *mi) 
+{
 	return Enable_Shadow_Highlight ? "S/H Enabled" : "S/H Disabled";
 }
-static void ToggleFPS() {
+
+static void ToggleFPS() 
+{
 	Show_FPS = !Show_FPS;
 }
-static const char *FPSStr(const struct MenuItem *mi) {
+
+static const char *FPSStr(const struct MenuItem *mi) 
+{
 	return Show_FPS ? "FPS (Shown)" : "FPS (Hidden)";
 }
 
@@ -183,52 +231,74 @@ extern int Enable_MapB;
 extern int Enable_Win;
 extern int Enable_Sprites;
 
-static void NextMapA() {
+static void NextMapA() 
+{
 	Enable_MapA++;
 	if (Enable_MapA > MAX_MAPA) Enable_MapA = 0;
 }
-static void PrevMapA() {
+
+static void PrevMapA() 
+{
 	Enable_MapA--;
 	if (Enable_MapA < 0) Enable_MapA = MAX_MAPA;
 }
-static void NextMapB() {
+
+static void NextMapB() 
+{
 	Enable_MapB++;
 	if (Enable_MapB > MAX_MAPB) Enable_MapB = 0;
 }
-static void PrevMapB() {
+
+static void PrevMapB() 
+{
 	Enable_MapB--;
 	if (Enable_MapB < 0) Enable_MapB = MAX_MAPB;
 }
-static const char *MapAStr(const struct MenuItem *mi) {
+
+static const char *MapAStr(const struct MenuItem *mi) 
+{
 	if (Enable_MapA == 1)
 		return "Map A (On)";
 	if (Enable_MapA == 2)
 		return "Map A (Old)";
 	return "Map A (Off)";
 }
-static const char *MapBStr(const struct MenuItem *mi) {
+
+static const char *MapBStr(const struct MenuItem *mi) 
+{
 	if (Enable_MapB == 1)
 		return "Map B (On)";
 	if (Enable_MapB == 2)
 		return "Map B (Old)";
 	return "Map B (Off)";
 }
-static void ToggleWin() {
+
+static void ToggleWin() 
+{
 	Enable_Win = !Enable_Win;
 }
-static const char *WinStr(const struct MenuItem *mi) {
+
+static const char *WinStr(const struct MenuItem *mi) 
+{
 	return Enable_Win ? "Window (On)" : "Window (Off)";
 }
-static void ToggleSprites() {
+
+static void ToggleSprites() 
+{
 	Enable_Sprites = !Enable_Sprites;
 }
-static const char *SpritesStr(const struct MenuItem *mi) {
+
+static const char *SpritesStr(const struct MenuItem *mi) 
+{
 	return Enable_Sprites ? "Sprites (On)" : "Sprites (Off)";
 }
 
-static void DebugDispMenu() {
+static void DebugDispMenu() 
+{
 	static int DebugDispSelection = 0;
-	static const struct MenuItem layermenu[] = {
+	
+	static const struct MenuItem layermenu[] = 
+	{
 		{"Display Debug", 0, &MyStr, 0, 0, 0},
 		{"", 0, &MyStr, 0, 0, 0},
 		//~ {"S/H En", 1, &SHStr, &ToggleSH, &ToggleSH, &ToggleSH},
@@ -260,7 +330,9 @@ static void DebugDispMenu() {
 	
 	ProcessMenu(layermenu, ARR_SIZE(layermenu), &DebugDispSelection, 1);
 }
-static void EnterDebugDisplay() {
+
+static void EnterDebugDisplay() 
+{
 	MenuMode = &DebugDispMenu;
 }
 
@@ -268,7 +340,8 @@ static void EnterDebugDisplay() {
 //Controller
 static int ControlSetting = 0;
 
-struct ControllerSetting {
+struct ControllerSetting 
+{
 	const char *name;
 	EmuInputButtons *mapping;
 };
@@ -280,7 +353,8 @@ extern EmuInputButtons ContMap6to6;
 extern EmuInputButtons ContMap4toViking;
 extern EmuInputButtons ContMap4toSF2;
 
-static const struct ControllerSetting contsettings[] = {
+static const struct ControllerSetting contsettings[] = 
+{
 	{"DC 4B to Gen 3B", &ContMap4to3},
 	{"DC 4B to Gen 3B (Rev)", &ContMap4to3Rev}, 
 	{"DC 4B to Gen 6B", &ContMap4to6},
@@ -289,7 +363,8 @@ static const struct ControllerSetting contsettings[] = {
 	{"DC 6B to Gen 6B", &ContMap6to6}, 
 };
 
-static void UpdateControlSetting() {
+static void UpdateControlSetting() 
+{
 	if (ControlSetting < 0 || ControlSetting >= ARR_SIZE(contsettings))
 		ControlSetting = 0;
 	
@@ -303,49 +378,62 @@ static void UpdateControlSetting() {
 	Controller_2_Type |= 1;
 	
 	//Except for first option
-	if (ControlSetting == 0) {
+	if (ControlSetting == 0) 
+	{
 		Controller_1_Type &= ~1;
 		Controller_2_Type &= ~1;
 	}
 		
 }
 
-void SetControls(int controlidx) {
+void SetControls(int controlidx) 
+{
 	ControlSetting = controlidx;
 	UpdateControlSetting();
 }
 
 
-static const char *ControlStr(const struct MenuItem *mi) {
+static const char *ControlStr(const struct MenuItem *mi) 
+{
 	return contsettings[ControlSetting].name;
 }
 
-static void NextControlSetting() {
+static void NextControlSetting() 
+{
 	ControlSetting++;
 	if (ControlSetting >= ARR_SIZE(contsettings))
 		ControlSetting = 0;
 	UpdateControlSetting();
 }
-static void PrevControlSetting() {
+
+static void PrevControlSetting() 
+{
 	ControlSetting--;
 	if (ControlSetting < 0)
+	{
 		ControlSetting = ARR_SIZE(contsettings)-1;
+	}
 	UpdateControlSetting();
 }
 
-static void ExitController() {
+static void ExitController() 
+{
 	MenuMode = &MainMenu;
 }
+
 static void ControllerMenu();
-static void EnterControllerMenu() {
+static void EnterControllerMenu() 
+{
 	MenuMode = &ControllerMenu;
 }
 
-static void ChangeControls(const struct MenuItem *mi) {
+static void ChangeControls(const struct MenuItem *mi) 
+{
 	SetControls(mi->idx);
 }
 
-static const char *ControlStr2(const struct MenuItem *mi) {
+static const char *ControlStr2(const struct MenuItem *mi) 
+{
 	static char buff[100];
 	if (ControlSetting == mi->idx)
 		snprintf(buff, sizeof(buff)-1, ">>>%s<<<", mi->string);
@@ -353,18 +441,22 @@ static const char *ControlStr2(const struct MenuItem *mi) {
 		snprintf(buff, sizeof(buff)-1, "%s", mi->string);
 	return buff;
 }
+
 static int ControllerSelection = 0;
 
 static int ShownController;
 static const char *ShownControllerName;
-int print_buttonmap(float y, const char *dclabel, int genbutton) {
-	static const char *buttons[] = {
+int print_buttonmap(float y, const char *dclabel, int genbutton) 
+{
+	static const char *buttons[] = 
+	{
 		"Null", "A", "B", "C", "X", "Y", "Z", "Start", "Mode",
 		"Up", "Down", "Left", "Right"
 	};
 	char mapbuff[100];
 	
-	if (genbutton < 0 || genbutton >= GENC_COUNT) {
+	if (genbutton < 0 || genbutton >= GENC_COUNT) 
+	{
 		printf("Bad genbutton %i\n", genbutton);
 		return y;
 	}
@@ -374,14 +466,18 @@ int print_buttonmap(float y, const char *dclabel, int genbutton) {
 	
 	sprintf(mapbuff, "%s -> %s", dclabel, buttons[genbutton]);
 	puts_center(emufont, y, mapbuff);
+	
 	return y + emufont->lineheight;
 }
 
-static void ShowController() {
-	
-	if (UICont->c.b || UICont->c.y) {
+static void ShowController() 
+{
+	if (UICont->c.b || UICont->c.y) 
+	{
 		EnterControllerMenu();
-	} else if (UICont->c.s || UICont->c.au) {
+	} 
+	else if (UICont->c.s || UICont->c.au) 
+	{
 		CloseGameMenu();
 	}
 	
@@ -394,7 +490,8 @@ static void ShowController() {
 	puts_center(emufont, line(2.5), "DC -> Gen");
 	float y = line(4.5);
 	
-	if (selcont != &ContMap6to6) {
+	if (selcont != &ContMap6to6) 
+	{
 		y = print_buttonmap(y, "A", selcont->a);
 		y = print_buttonmap(y, "B", selcont->b);
 		y = print_buttonmap(y, "X", selcont->x);
@@ -402,7 +499,9 @@ static void ShowController() {
 		y = print_buttonmap(y, "L", selcont->sl);
 		y = print_buttonmap(y, "R", selcont->sr);
 		y = print_buttonmap(y, "Analog-Down", selcont->ad);
-	} else {
+	} 
+	else 
+	{
 		y = print_buttonmap(y, "A", selcont->a);
 		y = print_buttonmap(y, "B", selcont->b);
 		y = print_buttonmap(y, "C", selcont->c);
@@ -412,8 +511,11 @@ static void ShowController() {
 		y = print_buttonmap(y, "R", selcont->sr);
 	}
 }
-static void ControllerMenu() {
-	static const struct MenuItem menu[] = {
+
+static void ControllerMenu() 
+{
+	static const struct MenuItem menu[] = 
+	{
 		{"Controls", 0, &MyStr, 0, 0, 0},
 		{"(Y: Show)", 0, &MyStr, 0, 0, 0},
 		{"", 0, &MyStr, 0, 0, 0},
@@ -427,13 +529,19 @@ static void ControllerMenu() {
 		{"", 0, &MyStr, 0, 0, 0},
 		{"Back", 1, &MyStr, &ExitController, 0, 0},
 	};
-	if (UICont->c.y) {
+	
+	if (UICont->c.y) 
+	{
 		MenuMode = &ShowController;
 		ShownControllerName = menu[ControllerSelection].string;
 		ShownController = menu[ControllerSelection].idx;
-	} else if (UICont->c.b) {
+	} 
+	else if (UICont->c.b) 
+	{
 		ExitController();
-	} else if (UICont->c.s || UICont->c.au) {
+	} 
+	else if (UICont->c.s || UICont->c.au) 
+	{
 		CloseGameMenu();
 	}
 	//Draw shadow
@@ -445,13 +553,15 @@ static void ControllerMenu() {
 
 ////////////////////////////////////////////////////////////////////////////
 //Render setting
-struct NLineDrawSetting {
+struct NLineDrawSetting 
+{
 	const char *name;
 	int drawa;
 	int drawb;
 };
 
-static const struct NLineDrawSetting ndrawsettings[] = {
+static const struct NLineDrawSetting ndrawsettings[] = 
+{
 	{"Line Scroll", MAP_DRAW_SPLIT2, MAP_DRAW_SPLIT2},
 	{"Line Scroll (4 div A)", MAP_DRAW_SPLIT4, MAP_DRAW_SPLIT2},
 	{"Line Scroll (4 div B)", MAP_DRAW_SPLIT2, MAP_DRAW_SPLIT4},
@@ -459,19 +569,26 @@ static const struct NLineDrawSetting ndrawsettings[] = {
 	{"Cell Scroll (4 div A)", MAP_DRAW_SPLIT4_CELL, MAP_DRAW_SPLIT2_CELL},
 	{"Cell Scroll (4 div B)", MAP_DRAW_SPLIT2_CELL, MAP_DRAW_SPLIT4_CELL},
 };
+
 static int NDrawSetting = 0;
 extern int Sonic_2_Auto_Render;
-static const char *NDrawStr(const struct MenuItem *mi) {
+
+static const char *NDrawStr(const struct MenuItem *mi) 
+{
 	if (Sonic_2_Auto_Render)
 		return "Sonic 2 Auto";
 	else
 		return ndrawsettings[NDrawSetting].name;
 }
-static void NUpdateDrawSetting() {
+
+static void NUpdateDrawSetting() 
+{
 	MapBDrawFuncId = ndrawsettings[NDrawSetting].drawb;
 	MapADrawFuncId = ndrawsettings[NDrawSetting].drawa;
 }
-void SetDrawSetting(int setting) {
+
+void SetDrawSetting(int setting) 
+{
 	if (setting < 0)
 		setting = 0;
 	if (setting >= ARR_SIZE(ndrawsettings))
@@ -479,7 +596,9 @@ void SetDrawSetting(int setting) {
 	NDrawSetting = setting;
 	NUpdateDrawSetting();
 }
-static void NNextDrawSetting() {
+
+static void NNextDrawSetting() 
+{
 	if (Sonic_2_Auto_Render)
 		return;
 	NDrawSetting++;
@@ -487,7 +606,9 @@ static void NNextDrawSetting() {
 		NDrawSetting = 0;
 	NUpdateDrawSetting();
 }
-static void NPrevDrawSetting() {
+
+static void NPrevDrawSetting() 
+{
 	if (Sonic_2_Auto_Render)
 		return;
 	NDrawSetting--;
@@ -499,8 +620,10 @@ static void NPrevDrawSetting() {
 ////////////////////////////////////////////////////////////////////////////
 //SRAM
 static int save_result;
-static void SaveResult() {
-	if (UICont->c.a || UICont->c.b || UICont->c.s) {
+static void SaveResult() 
+{
+	if (UICont->c.a || UICont->c.b || UICont->c.s) 
+	{
 		BringUpGameMenu();
 		//~ MenuMode = &MainMenu;
 		MenuMode = &MainMenu;
@@ -520,7 +643,9 @@ static void SaveResult() {
 	else
 		puts_center(emufont, CENTER_Y - emufont->lineheight/2, "Unknown result");
 }
-static void CommitSave() {
+
+static void CommitSave() 
+{
 	save_result = Commit_Save_SRAM();
 	MenuMode = &SaveResult;
 	
@@ -528,13 +653,17 @@ static void CommitSave() {
 	//Draw shadow
 	draw_rect_wh(24*2, 24*2, 320-48*2,240-48*2, 400, MENU_BG_COLOR, pc);
 }
-static void SaveMenu() {
-	if (UICont->c.b || UICont->c.s) {
+
+static void SaveMenu() 
+{
+	if (UICont->c.b || UICont->c.s) 
+	{
 		Abort_Save_SRAM();
 		//~ BringUpGameMenu();
 		MenuMode = &MainMenu;
 	}
-	if (UICont->c.a) {
+	else if (UICont->c.a) 
+	{
 		//We want "Saving..." to be displayed before saving, so render one frame here,
 		//then on the next frame do the actual save in CommitSave
 		void *pc = sqPrepare((void*)PVR_TA_INPUT);
@@ -558,18 +687,27 @@ static void SaveMenu() {
 	
 	//~ puts_center(emufont, CENTER_Y - emufont->lineheight/2, "Nothing to save");
 }
-static const char *SRAMStr(const struct MenuItem *mi) {
+
+static const char *SRAMStr(const struct MenuItem *mi) 
+{
 	return Has_SRAM_Changed() ? "Save SRAM (SRAM changed)" : "Save SRAM (SRAM not changed)";
 }
 
-static void DoSave() {
-	if (!Has_SRAM_Changed()) {
+static void DoSave() 
+{
+	if (!Has_SRAM_Changed()) 
+	{
 		save_result = -1;
 		MenuMode = &SaveResult;
-	} else {
-		if (Prepare_Save_SRAM()) {
+	} 
+	else 
+	{
+		if (Prepare_Save_SRAM()) 
+		{
 			MenuMode = &SaveMenu;
-		} else {
+		} 
+		else 
+		{
 			save_result = 0;
 			MenuMode = &SaveResult;
 		}
@@ -579,14 +717,17 @@ static void DoSave() {
 ////////////////////////////////////////////////////////////////////////////
 //Video Menu
 
-static void ExitVideo() {
+static void ExitVideo() 
+{
 	MenuMode = &MainMenu;
 }
 
 static int VideoMenuSelection = 0;
 
-static void VideoMenu() {
-	static const struct MenuItem videomenu[] = {
+static void VideoMenu() 
+{
+	static const struct MenuItem videomenu[] = 
+	{
 		{"", 0, &MyStr, 0, 0, 0},
 		{"", 0, &MyStr, 0, 0, 0},
 		{"Video Options", 0, &MyStr, 0, 0, 0},
@@ -604,12 +745,19 @@ static void VideoMenu() {
 		{"", 0, &MyStr, 0, 0, 0},
 		{"Back", 1, &MyStr, &ExitVideo, 0, 0},
 	};
+	
 	if (UICont->h.y)
+	{
 		return;
-	if (UICont->c.b)
+	}
+	else if (UICont->c.b)
+	{
 		ExitVideo();
+	}
 	else if (UICont->c.s || UICont->c.au)
+	{
 		CloseGameMenu();
+	}
 	
 	//Draw shadow
 	draw_rect_wh(24, 24+LINE_HEIGHT, 320-48,240-48-LINE_HEIGHT, 400, MENU_BG_COLOR, sqPrepare((void*)PVR_TA_INPUT));
@@ -621,32 +769,41 @@ static void VideoMenu() {
 ////////////////////////////////////////////////////////////////////////////
 //Main Menu
 
-static void Reset(const struct MenuItem * mi) {
+static void Reset(const struct MenuItem * mi) 
+{
 	Reset_Genesis();
 }
 
 static int MainMenuSelection = 0;
-static void MainMenu() {
-	static const struct MenuItem mainmenu[] = {
-		{"", 0, &MyStr, 0, 0, 0},
-		{"Paused", 0, &MyStr, 0, 0, 0},
-		{"", 0, &MyStr, 0, 0, 0},
-		{"Resume Game", 1, &MyStr, &CloseGameMenu, 0, 0},
-		{"Controls", 1, &MyStr, &EnterControllerMenu, 0, 0},
-		{"SRAM", 1, &SRAMStr, &DoSave, 0, 0},
-		{"Hard Reset", 1, &MyStr, &Reset, 0, 0},
-		{"Video Options", 1, &MyStr, &EnterVideoMenu, 0, 0},
-		{"", 0, &MyStr, 0, 0, 0},
-		{"", 0, &MyStr, 0, 0, 0},
-		{"Exit Game", 1, &MyStr, &ExitGame, 0, 0},
-	};
-	
-	if (UICont->c.b || UICont->c.s || UICont->c.au) {
+
+static const char save_state_str[2][12] = { "Save state", "Load state"};
+
+static struct MenuItem mainmenu[] = 
+{
+	{ "", 				0, &MyStr,	 NULL, 					0, 0 },
+	{ "Paused", 		0, &MyStr,	 NULL, 					0, 0 },
+	{ "", 				0, &MyStr,	 NULL, 					0, 0 },
+	{ "Resume Game", 	1, &MyStr,	 &CloseGameMenu, 		0, 0 },
+	{ "Controls", 		1, &MyStr,	 &EnterControllerMenu,  0, 0 },
+	{ "SRAM", 			1, &SRAMStr, &DoSave, 				0, 0 },
+	{ "Hard Reset", 	1, &MyStr,	 &Reset, 				0, 0 },
+	{ "Video Options", 	1, &MyStr,	 &EnterVideoMenu, 		0, 0 },
+	{ "", 				0, &MyStr,	 NULL, 					0, 0 },
+	{ "", 				0, &MyStr,	 NULL, 					0, 0 },
+	{ "Exit Game", 		1, &MyStr,	 &ExitGame, 			0, 0 }
+};
+
+static void MainMenu()
+{
+	if (UICont->c.b || UICont->c.s || UICont->c.au) 
+	{
 		CloseGameMenu();
 	}
 	
 	if (UICont->h.y)
+	{
 		return;
+	}
 	
 	void *pc = sqPrepare((void*)PVR_TA_INPUT);
 	
@@ -656,7 +813,74 @@ static void MainMenu() {
 	ProcessMenu(mainmenu, ARR_SIZE(mainmenu), &MainMenuSelection, 1);
 }
 
-void RunGameMenu() {
+extern int dev_mounted;
+extern const char *current_game_dir;
+
+static void DoSaveState(const struct MenuItem * mi)
+{
+	char SSname[512];
+	char *RName = Game->Rom_Name;
+	
+	if (dev_mounted & 2)
+	{
+		sprintf(SSname, "/hdd/gens4all/savestate/%s.gs", RName);
+	}
+	else if (dev_mounted & 1)
+	{
+		sprintf(SSname, "/sd/gens4all/savestate/%s.gs", RName);
+	}
+	else
+	{
+		sprintf(SSname, "%s/savestate/%s.gs", ROM_PREFIX, RName);
+	}
+	
+	save_result = Save_State(SSname) - 1;
+	
+	if (!save_result)
+	{
+		save_result = 1;
+	}
+	
+	MenuMode = &SaveResult;
+	
+	void *pc = sqPrepare((void*)PVR_TA_INPUT);
+	//Draw shadow
+	draw_rect_wh(24*2, 24*2, 320-48*2,240-48*2, 400, MENU_BG_COLOR, pc);
+}
+
+static void DoLoadState(const struct MenuItem * mi)
+{
+	char SSname[512];
+	char *RName = Game->Rom_Name;
+	
+	if (dev_mounted & 2)
+	{
+		sprintf(SSname, "/hdd/gens4all/savestate/%s.gs", RName);
+	}
+	else if (dev_mounted & 1)
+	{
+		sprintf(SSname, "/sd/gens4all/savestate/%s.gs", RName);
+	}
+	else
+	{
+		sprintf(SSname, "%s/savestate/%s.gs", ROM_PREFIX, RName);
+	}
+	
+	Load_State(SSname);
+}
+
+void RunGameMenu() 
+{
 	MenuMode();
+}
+
+void Enable_SaveState()
+{
+	mainmenu[8].string = save_state_str[0];
+	mainmenu[8].selectable = 1;
+	mainmenu[8].picked = &DoSaveState;
+	mainmenu[9].string = save_state_str[1];
+	mainmenu[9].selectable = 1;
+	mainmenu[9].picked = &DoLoadState;
 }
 

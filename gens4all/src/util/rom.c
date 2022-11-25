@@ -33,19 +33,32 @@ static void get_gamename(char *dst, char *src)
 {
 	int i,j=0;
 
-	for(i=0;i<48;i++)
+	for(i=0; i<48; i++)
 	{
 		if (src[i] == ' ')
 		{
 			if (j == 0)
+			{
 				continue;
+			}
+			
 			if (dst[j-1] == ' ')
+			{
 				continue;
+			}
 		}
+		
 		if (isPrintable(src[i]))
+		{
 			dst[j++] = src[i];
+		}
 	}
 	dst[j] = '\0';
+	
+	if (dst[j-1] == ' ')
+	{
+		dst[j-1] = '\0';
+	}
 }
 
 
@@ -180,103 +193,113 @@ int Detect_Format (char *Name)
 
 	memset (buf, 0, 1024);
 
-  if ((!stricmp ("zip", &Name[strlen (Name) - 3]))
-      || (!stricmp ("zsg", &Name[strlen (Name) - 3])))
+	if ((!stricmp ("zip", &Name[strlen (Name) - 3])) || 
+		(!stricmp ("zsg", &Name[strlen (Name) - 3])))
     {
-      zf = unzOpen (Name);
-
-      if (!zf)
-	return -1;
-
-      i = unzGoToFirstFile (zf);
-
-      while (i == UNZ_OK)
+		zf = unzOpen (Name);
+		
+		if (!zf)
+			return -1;
+		
+		i = unzGoToFirstFile (zf);
+		
+		while (i == UNZ_OK)
+		{
+			unzGetCurrentFileInfo (zf, &zinf, (char*)zname, 128, NULL, 0, NULL, 0);
+			
+			if ((!strnicmp ("smd", (const char *)&zname[strlen ((const char *)zname) - 3], 3))
+				||
+				(!strnicmp ("bin", (const char *)&zname[strlen ((const char *)zname) - 3], 3))
+				||
+				(!strnicmp ("gen", (const char *)&zname[strlen ((const char *)zname) - 3], 3))
+				||
+				(!strnicmp ("32x", (const char *)&zname[strlen ((const char *)zname) - 3], 3))
+				|| 
+				(!strnicmp ("iso", (const char *)&zname[strlen ((const char *)zname) - 3], 3)))
+			{
+				i = 0;
+				break;
+			}
+			
+			i = unzGoToNextFile (zf);
+		}
+		
+		if (i)
+			return 0;
+		
+		if (unzLocateFile (zf, (const char *)zname, 1) != UNZ_OK)
+			return 0;
+		
+		if (unzOpenCurrentFile (zf) != UNZ_OK)
+			return 0;
+		
+		unzReadCurrentFile (zf, buf, 1024);
+		
+		unzCloseCurrentFile (zf);
+		unzClose (zf);
+	}
+	else if (!stricmp (".gz", &Name[strlen (Name) - 3]))
 	{
-	  unzGetCurrentFileInfo (zf, &zinf, (char*)zname, 128, NULL, 0, NULL, 0);
-
-	  if ((!strnicmp ("smd", (const char *)&zname[strlen ((const char *)zname) - 3], 3))
-	      ||
-	      (!strnicmp ("bin", (const char *)&zname[strlen ((const char *)zname) - 3], 3))
-	      ||
-	      (!strnicmp ("gen", (const char *)&zname[strlen ((const char *)zname) - 3], 3))
-	      ||
-	      (!strnicmp ("32x", (const char *)&zname[strlen ((const char *)zname) - 3], 3))
-	      || (!strnicmp ("iso", (const char *)&zname[strlen ((const char *)zname) - 3], 3)))
-	    {
-	      i = 0;
-	      break;
-	    }
-
-	  i = unzGoToNextFile (zf);
+		f = (FILE *) gzopen (Name, "rb");
+		
+		if (f == NULL)
+			return -1;
+		
+		gzread (f, buf, 1024);
+		gzclose (f);
+	}
+	else
+	{
+		strcpy ((char *)zname, Name);
+		
+		f = fopen ((char *)zname, "rb");
+		
+		if (f == NULL)
+		{
+			printf("DEBUG: can't open %s\n", zname);
+			return -1;
+		}
+		
+		fread (buf, 1, 1024, f);
+		
+		fclose (f);
+	}
+	
+	if (!strnicmp ("SEGADISCSYSTEM", (const char *)&buf[0x00], 14))
+		return SEGACD_IMAGE;	// Sega CD (ISO)
+	
+	if (!strnicmp ("SEGADISCSYSTEM", (const char *)&buf[0x10], 14))
+		return SEGACD_IMAGE + 1;	// Sega CD (BIN)
+	
+	i = 0;
+	
+	if (strnicmp ("SEGA", (const char *)&buf[0x100], 4))
+    {
+		// Maybe interleaved
+		
+		if (!strnicmp ("EA", (const char *)&buf[0x200 + (0x100 / 2)], 2))
+			i = 1;
+		
+		if ((buf[0x08] == 0xAA) && (buf[0x09] == 0xBB) && (buf[0x0A] == 0x06))
+			i = 1;
 	}
 
-      if (i)
-	return 0;
-      if (unzLocateFile (zf, (const char *)zname, 1) != UNZ_OK)
-	return 0;
-      if (unzOpenCurrentFile (zf) != UNZ_OK)
-	return 0;
-
-      unzReadCurrentFile (zf, buf, 1024);
-
-      unzCloseCurrentFile (zf);
-      unzClose (zf);
-    }
-  else if (!stricmp (".gz", &Name[strlen (Name) - 3]))
-    {
-      f = (FILE *) gzopen (Name, "rb");
-      if (f == NULL)
-	return -1;
-      gzread (f, buf, 1024);
-      gzclose (f);
-    }
-  else
-    {
-      strcpy ((char *)zname, Name);
-
-      f = fopen ((char *)zname, "rb");
-
-      if (f == NULL)
-	return -1;
-
-      fread (buf, 1, 1024, f);
-
-      fclose (f);
-    }
-
-  if (!strnicmp ("SEGADISCSYSTEM", (const char *)&buf[0x00], 14))
-    return SEGACD_IMAGE;	// Sega CD (ISO)
-  if (!strnicmp ("SEGADISCSYSTEM", (const char *)&buf[0x10], 14))
-    return SEGACD_IMAGE + 1;	// Sega CD (BIN)
-
-  i = 0;
-
-  if (strnicmp ("SEGA", (const char *)&buf[0x100], 4))
-    {
-      // Maybe interleaved
-
-      if (!strnicmp ("EA", (const char *)&buf[0x200 + (0x100 / 2)], 2))
-	i = 1;
-      if ((buf[0x08] == 0xAA) && (buf[0x09] == 0xBB) && (buf[0x0A] == 0x06))
-	i = 1;
-    }
-
 #ifdef SEGA_32X
-  if (i)			// interleaved
-    {
-      if ((!strnicmp ("32X", &zname[strlen (zname) - 3], 3))
-	  && (buf[0x200 / 2] == 0x4E))
-	return _32X_ROM + 1;
-      if (!strnicmp ("3X", &buf[0x200 + (0x105 / 2)], 2))
-	return _32X_ROM + 1;
+	if (i)			// interleaved
+	{
+		if ((!strnicmp ("32X", &zname[strlen (zname) - 3], 3)) && (buf[0x200 / 2] == 0x4E))
+			return _32X_ROM + 1;
+		
+		if (!strnicmp ("3X", &buf[0x200 + (0x105 / 2)], 2))
+			return _32X_ROM + 1;
     }
-  else
+	else
     {
-      if ((!strnicmp ("32X", &zname[strlen (zname) - 3], 3))
-	  && (buf[0x200] == 0x4E))
-	return _32X_ROM;
-      if (!strnicmp ("32X", &buf[0x105], 3))
-	return _32X_ROM;
+		if ((!strnicmp ("32X", &zname[strlen (zname) - 3], 3)) && (buf[0x200] == 0x4E))
+			return _32X_ROM;
+		
+		if (!strnicmp ("32X", &buf[0x105], 3))
+			return _32X_ROM;
     }
 #endif
 
@@ -395,6 +418,7 @@ int Get_Rom (char *rom_file)
 
 	if (sys < 1)
 	{
+		printf("DEBUG: format not support\n", Name);
 		return -1;
 	}
 
@@ -595,7 +619,7 @@ Rom * Load_Rom (char *Name, int inter)
 	Size = ftell (Rom_File);
 	fseek (Rom_File, 0, SEEK_SET);
 
-	if ((Size) > ((6 * 1024 * 1024) + 512))
+	if ((Size) > ((8 * 1024 * 1024) + 512))
 	{
 		Game = NULL;
 		fclose (Rom_File);
@@ -611,7 +635,7 @@ Rom * Load_Rom (char *Name, int inter)
 		return (NULL);
 	}
 
-	memset (Rom_Data, 0, 6 * 1024 * 1024);
+	memset (Rom_Data, 0, 8 * 1024 * 1024);
 	//fread (Rom_Data, Size, 1, Rom_File);
 	fclose (Rom_File);
 	
@@ -648,7 +672,7 @@ Rom * Load_Rom_Gz (char *Name, int inter)
 	}
 
 	gzrewind (Rom_File);
-	if ((Size) > ((6 * 1024 * 1024) + 512))
+	if ((Size) > ((8 * 1024 * 1024) + 512))
 	{
 		Game = NULL;
 		gzclose (Rom_File);
@@ -663,7 +687,7 @@ Rom * Load_Rom_Gz (char *Name, int inter)
 		return (NULL);
 	}
 
-	memset (Rom_Data, 0, 6 * 1024 * 1024);
+	memset (Rom_Data, 0, 8 * 1024 * 1024);
 	gzread (Rom_File, Rom_Data, Size);
 	gzclose (Rom_File);
 	Update_Rom_Name (Name);
@@ -731,7 +755,7 @@ Rom * Load_Rom_Zipped (char *Name, int inter)
 		return (NULL);
 	}
 
-	if (Size > ((6 * 1024 * 1024) + 512))
+	if (Size > ((8 * 1024 * 1024) + 512))
 	{
 		unzClose (Rom_File);
 		Game = NULL;
@@ -761,7 +785,7 @@ Rom * Load_Rom_Zipped (char *Name, int inter)
 		return (NULL);
 	}
 
-	memset (Rom_Data, 0, 6 * 1024 * 1024);
+	memset (Rom_Data, 0, 8 * 1024 * 1024);
 	bResult = unzReadCurrentFile (Rom_File, Rom_Data, Size);
 	unzCloseCurrentFile (Rom_File);
 

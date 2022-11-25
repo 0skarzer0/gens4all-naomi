@@ -102,7 +102,8 @@ static Uint32 GetPixel(SDL_Surface *screen, int x, int y)
             return;
         }
     }*/
-    switch (screen->format->BytesPerPixel) {
+    switch (screen->format->BytesPerPixel) 
+    {
         case 1: { /* Assuming 8-bpp */
             Uint8 *bufp;
 
@@ -141,6 +142,7 @@ static Uint32 GetPixel(SDL_Surface *screen, int x, int y)
 /*    if ( SDL_MUSTLOCK(screen) ) {
         SDL_UnlockSurface(screen);
     }*/
+    return 0;
 }
 
 static void menu_fade_in(void)
@@ -241,7 +243,7 @@ static void inc_num_val(int *var, const int incr)
 }
 
 /* Writes an entry at the specified position */
-static int menu_write_item(const char *str, const int pos, const int enabled)
+static void menu_write_item(const char *str, const int pos, const int enabled)
 {
 	if (pos == selected_option)
 	{
@@ -255,7 +257,7 @@ static int menu_write_item(const char *str, const int pos, const int enabled)
 }
 
 /* Writes an entry at the specified position */
-static int exec_menu_item(void)
+static void exec_menu_item(void)
 {
 	SFont_Write(surface,sfonta,STARTING_X, STARTING_Y + selected_option*(font_height + LINE_SPACING),menu_desc->entries[selected_option + (menu_pag*menu_items)].text);
 	SDL_UpdateRect(surface,0,STARTING_Y + selected_option*(font_height + LINE_SPACING),surface->w,selected_option*(font_height + LINE_SPACING) + font_height);

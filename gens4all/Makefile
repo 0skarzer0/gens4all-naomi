@@ -14,20 +14,20 @@ KOS_CFLAGS+= -Wno-unused -Wno-format -DGCCCONSTFUNC="__attribute__((const))" -fn
 KOS_CFLAGS += -DDEBUG_GENS4ALL -DDEBUG_GENS4ALL_FFLUSH
 
 
-KOS_CFLAGS+= -DROM_PREFIX="/pc/gensrom" -DDATA_PREFIX="/rd/"
+KOS_CFLAGS+= -DROM_PREFIX="/pc/home/gens4all" -DDATA_PREFIX="/rd/"
 
 KOS_CFLAGS+= -DRAZE -DFAME
 
 #~ KOS_CFLAGS+= -DPROFILER_GENS4ALL
 KOS_CFLAGS+= -DDEBUGCOMMANDS=0
 KOS_CFLAGS+= -DDEBUGDISPLAYDEFAULT=0
-KOS_CFLAGS+= -DGAMELISTLOADER=1
+KOS_CFLAGS+= -DGAMELISTLOADER=0
 KOS_CFLAGS+= -DSKIPTITLE=0
 KOS_CFLAGS+= -DGAMELISTFNAME="/cd/gamelist.bin"
 #~ KOS_CFLAGS+= -DGAMELISTFNAME="/pc/home/alex/dc/gens4all/src/glparse/gamelist.bin"
 KOS_CFLAGS+= -DSKIPLOADER=0
 KOS_CFLAGS+= -DINLINE68K=1
-KOS_CFLAGS+= -DSORTDIR=0
+KOS_CFLAGS+= -DSORTDIR=1
 KOS_CFLAGS+= -DSAVE_TO_PC=0
 #~ KOS_CFLAGS+= -DVDP_HIRES
 KOS_CFLAGS+= -DVDP_STRETCH_256=0
@@ -38,7 +38,7 @@ all: $(TARGET).bin
 
 include $(KOS_BASE)/Makefile.rules
 
-include config.mk
+#include config.mk
 
 CFLAGS+= -Isrc/incplus
 
@@ -76,6 +76,7 @@ OBJS =	\
 	src/input.o \
 	src/misc.o \
 	src/mem/mem_m68k.o \
+	src/mem/eeprom_spi.o \
 	src/cpu/m68k/cpu_m68k.o \
 	src/cpu/z80/cpu_z80.o \
 	src/mem/mem_z80.o \
@@ -124,7 +125,7 @@ clean:
 
 $(TARGET).elf: $(OBJS)
 	$(KOS_CC) $(KOS_CFLAGS) $(KOS_LDFLAGS) -o $(TARGET).elf $(KOS_START) \
-	$(OBJS) $(OBJEXTRA) -lSDLDH -lz -lm $(KOS_LIBS)
+	$(OBJS) $(OBJEXTRA) -lkosfat -lSDLDH -lGLdc -lz -lm $(KOS_LIBS)
 
 
 $(TARGET).bin: $(TARGET).elf
@@ -141,8 +142,8 @@ example.iso: example
 
 
 run: $(TARGET).bin example.iso
-	$(KOS_LOADER) $(TARGET).bin -i example.iso
-#	$(KOS_LOADER) $(TARGET).bin 
+#	$(KOS_LOADER) $(TARGET).bin -i example.iso
+	$(KOS_LOADER) $(TARGET).bin 
 #	$(KOS_LOADER) $(TARGET).bin -n
 
 

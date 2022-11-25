@@ -540,94 +540,105 @@ int Update_Crazy_Effect (void)
 
 int Update_Emulation (void)
 {
-  static int Over_Time = 0;
-  int current_div;
-
-  if (Frame_Skip != -1)
-    {
+	static int Over_Time = 0;
+	int current_div;
+	
+	if (Frame_Skip != -1)
+	{
 #ifndef NO_SOUND
-      if (Sound_Enable) {
-	      Write_Sound_Buffer (NULL);
-	      
-	     
-	}
-#endif
-
-      Update_Controllers ();
-
-      if (Frame_Number++ < Frame_Skip)
-	{
-	  Update_Frame_Fast ();
-	}
-      else
-	{
-	  Frame_Number = 0;
-	  Update_Frame ();
-	  Flip ();
-	}
-    }
-  else
-    {
-      if (1 && Sound_Enable)
-	{
-		Write_Sound_Buffer (NULL);
-		 if (0 && !Use_SDL_Audio) {
-			//~ printf("B"); fflush(stdout);
-			//~ snd_stream_start(game_stream, Sound_Rate, Sound_Stereo);
-			//~ int ret = snd_stream_poll(game_stream);
-			//~ if (ret) {
-				//~ printf("SSP: %i\n", ret);fflush(stdout);
-			//~ }
+		if (Sound_Enable) 
+		{
+			Write_Sound_Buffer (NULL);
 		}
+#endif
 		Update_Controllers ();
-		Update_Frame ();
-		if (Render_Point == 1)
-			Flip ();	//DC flip with sound
+		
+		if (Frame_Number++ < Frame_Skip)
+		{
+			Update_Frame_Fast ();
+		}
+		else
+		{
+			Frame_Number = 0;
+			Update_Frame ();
+			Flip ();
+		}
 	}
-      else
-	{
-	  if (CPU_Mode)
-	    current_div = 20;
-	  else
-	    current_div = 16 + (Over_Time ^= 1);
-
-	  New_Time = GetTickCount ();
-	  Used_Time += (New_Time - Last_Time);
-	  Frame_Number = Used_Time / current_div;
-	  Used_Time %= current_div;
-	  Last_Time = New_Time;
-
-	  if (Frame_Number > 8)
-	    Frame_Number = 8;
-
-	  for (; Frame_Number > 1; Frame_Number--)
-	    {
-	      Update_Controllers ();
-	      Update_Frame_Fast ();
-	    }
-
-	  if (Frame_Number)
-	    {
-	      Update_Controllers ();
-	      Update_Frame ();
-	      Flip ();
-	    }
-	  else
-	    Sleep (Sleep_Time);
+	else
+    {
+		if (1 && Sound_Enable)
+		{
+			Write_Sound_Buffer (NULL);
+			/*if (0 && !Use_SDL_Audio) 
+			{
+				printf("B"); fflush(stdout);
+				snd_stream_start(game_stream, Sound_Rate, Sound_Stereo);
+				int ret = snd_stream_poll(game_stream);
+				if (ret) 
+				{
+					printf("SSP: %i\n", ret);fflush(stdout);
+				}
+			}*/
+			Update_Controllers ();
+			Update_Frame ();
+			
+			if (Render_Point == 1)
+			{
+				Flip ();	//DC flip with sound
+			}
+		}
+		else
+		{
+			if (CPU_Mode)
+			{
+				current_div = 20;
+			}
+			else
+			{
+				current_div = 16 + (Over_Time ^= 1);
+			}
+			
+			New_Time = GetTickCount();
+			Used_Time += (New_Time - Last_Time);
+			Frame_Number = Used_Time / current_div;
+			Used_Time %= current_div;
+			Last_Time = New_Time;
+			
+			if (Frame_Number > 8)
+			{
+				Frame_Number = 8;
+			}
+			
+			for (; Frame_Number > 1; Frame_Number--)
+			{
+				Update_Controllers ();
+				Update_Frame_Fast ();
+			}
+			
+			if (Frame_Number)
+			{
+				Update_Controllers ();
+				Update_Frame ();
+				Flip ();
+			}
+			else
+			{
+				Sleep (Sleep_Time);
+			}
+		}
 	}
-    }
-
-  return 1;
+	
+	return 1;
 }
 
 
 int Update_Emulation_One (void)
 {
-  Update_Controllers ();
-  Update_Frame ();
-  Flip ();
-
-  return 1;
+	Update_Controllers();
+	Update_Frame ();
+	Flip ();
+	
+	return 1;
 }
 
 

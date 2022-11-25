@@ -72,144 +72,100 @@ close_joystick ()
     }
 }
 
-int
-Init_Input (void)
+int Init_Input (void)
 {
-  memset (joystate, 0, sizeof (joystate));
-  if (SDL_NumJoysticks () > 0)
+	memset (joystate, 0, sizeof (joystate));
+	
+	if (SDL_NumJoysticks () > 0)
     {
       open_joystick ();
     }
-  return 1;
-}
-
-
-void
-Restore_Input ()
-{
-}
-
-int
-Check_Key_Pressed (unsigned int key)
-{
-  int Num_Joy;
-  if (key < 1024)
-    {
-      if (Keys[key])
-	return (1);
-    }
-  else
-    {
-      Num_Joy = ((key >> 8) & 0xF);
-
-      if ((Num_Joy < 2) && joy[Num_Joy])
-	{
-	  if (key & 0x80)	// Test POV Joys
-	    {
-	      switch (key & 0xF)
-		{
-		case 1:
-		  //if (Joy_State[Num_Joy].rgdwPOV[(key >> 4) & 3] == 0) return(1); break;
-		  //if (joystate[0x100*Num_Joy].rgdwPOV[(key >> 4) & 3] == 0) return(1); break;
-		case 2:
-		  //if (Joy_State[Num_Joy].rgdwPOV[(key >> 4) & 3] == 9000) return(1); break;
-		  //if (joystate[0x100*Num_Joy].rgdwPOV[(key >> 4) & 3] == 9000) return(1); break;
-		case 3:
-		  //if (Joy_State[Num_Joy].rgdwPOV[(key >> 4) & 3] == 18000) return(1); break;
-		  //if (joystate[0x100*Num_Joy].rgdwPOV[(key >> 4) & 3] == 18000) return(1); break;
-		case 4:
-		  //if (Joy_State[Num_Joy].rgdwPOV[(key >> 4) & 3] == 27000) return(1); break;
-		  //if (joystate[0x100*Num_Joy].rgdwPOV[(key >> 4) & 3] == 27000) return(1); break;
-		default:
-		  break;
-		}
-
-	    }
-	  else if (key & 0x70)	// Test Button Joys
-	    {
-	      if (joystate[0x10 + 0x100 * Num_Joy + (key & 0xFF - 0x10)])
-		return 1;
-	    }
-	  else
-	    {
-	      switch (key & 0xF)
-		{
-		case 1:
-		  if (joystate[0x100 * Num_Joy + 0x1])
-		    return 1;
-		  break;
-
-		case 2:
-		  if (joystate[0x100 * Num_Joy + 0x2])
-		    return 1;
-		  break;
-
-		case 3:
-		  if (joystate[0x100 * Num_Joy + 0x3])
-		    return 1;
-		  break;
-
-		case 4:
-		  if (joystate[0x100 * Num_Joy + 0x4])
-		    return 1;
-		  break;
-		}
-	    }
-	}
-    }
-  return 0;
-}
-
-unsigned int Get_Key (void)
-{
-	SDL_Event sdl_event;
-	SDL_Joystick *js[2];
-	SDL_JoystickEventState (SDL_ENABLE);
 	
-	js[0] = SDL_JoystickOpen (0);
-	js[1] = SDL_JoystickOpen (1);
+	return 1;
+}
 
-	while (SDL_PollEvent (&sdl_event))
-	{
-	  switch (sdl_event.type)
-	    {
-	    case SDL_KEYDOWN:
-	    	return (unsigned int)sdl_event.key.keysym.sym;
-	    case SDL_JOYAXISMOTION:
-	      if (sdl_event.jaxis.value < -500)
-		{
-		  return (0x1000 +
-			  (0x100 * sdl_event.jaxis.which +
-			   ((sdl_event.jaxis.axis == 0) ? 0x3 : 0x1)));
-		}
-	      else if (sdl_event.jaxis.value > 500)
-		{
-		  return (0x1000 +
-			  (0x100 * sdl_event.jaxis.which +
-			   ((sdl_event.jaxis.axis == 0) ? 0x4 : 0x2)));
-		}
-	      else if (sdl_event.jaxis.value == 0)
-		{
-		  return (Get_Key ());
-		}
-	      break;
 
-	    case SDL_JOYBUTTONUP:
-	      return (0x1010 + (0x100 * sdl_event.jbutton.which) +
-		      sdl_event.jbutton.button);
-	      break;
+void Restore_Input ()
+{
+	
+}
 
-	      //case SDL_JOYHATMOTION:                                        
-		// return(0xdeadbeef + (0x100 * sdl_event.jhat.which) + sdl_event.jhat.hat + sdl_event.jhat.value);
-	    }
+int Check_Key_Pressed (unsigned int key)
+{
+	int Num_Joy;
+	
+	if (key < 1024)
+    {
+		if (Keys[key])
+			return (1);
     }
+	else
+    {
+		Num_Joy = ((key >> 8) & 0xF);
+		
+		if ((Num_Joy < 2) && joy[Num_Joy])
+		{
+			if (key & 0x80)	// Test POV Joys
+			{
+				switch (key & 0xF)
+				{
+					case 1:
+						//if (Joy_State[Num_Joy].rgdwPOV[(key >> 4) & 3] == 0) return(1); break;
+						//if (joystate[0x100*Num_Joy].rgdwPOV[(key >> 4) & 3] == 0) return(1); break;
+					case 2:
+						//if (Joy_State[Num_Joy].rgdwPOV[(key >> 4) & 3] == 9000) return(1); break;
+						//if (joystate[0x100*Num_Joy].rgdwPOV[(key >> 4) & 3] == 9000) return(1); break;
+					case 3:
+						//if (Joy_State[Num_Joy].rgdwPOV[(key >> 4) & 3] == 18000) return(1); break;
+						//if (joystate[0x100*Num_Joy].rgdwPOV[(key >> 4) & 3] == 18000) return(1); break;
+					case 4:
+						//if (Joy_State[Num_Joy].rgdwPOV[(key >> 4) & 3] == 27000) return(1); break;
+						//if (joystate[0x100*Num_Joy].rgdwPOV[(key >> 4) & 3] == 27000) return(1); break;
+					default:
+						break;
+				}
+			}
+			else if (key & 0x70)	// Test Button Joys
+			{
+				if (joystate[0x10 + 0x100 * Num_Joy + (key & 0xFF - 0x10)])
+					return 1;
+			}
+			else
+			{
+				switch (key & 0xF)
+				{
+					case 1:
+						if (joystate[0x100 * Num_Joy + 0x1])
+							return 1;
+						break;
+					
+					case 2:
+						if (joystate[0x100 * Num_Joy + 0x2])
+							return 1;
+						break;
+					
+					case 3:
+						if (joystate[0x100 * Num_Joy + 0x3])
+							return 1;
+						break;
+					
+					case 4:
+						if (joystate[0x100 * Num_Joy + 0x4])
+							return 1;
+						break;
+				}
+			}
+		}
+	}
+	return 0;
 }
 
 int inkey;
 EmuInput Cont[MAX_CONTROLLERS];
 EmuInput *UICont = &Cont[0];
 
-EmuInputButtons ContMap4to3 = {
+EmuInputButtons ContMap4to3 =
+{
 	.u = GENC_UP,
 	.d = GENC_DOWN,
 	.l = GENC_LEFT,
@@ -221,7 +177,8 @@ EmuInputButtons ContMap4to3 = {
 	.s = GENC_START,
 };
 
-EmuInputButtons ContMap4to3Rev = {
+EmuInputButtons ContMap4to3Rev =
+{
 	.u = GENC_UP,
 	.d = GENC_DOWN,
 	.l = GENC_LEFT,
@@ -233,7 +190,8 @@ EmuInputButtons ContMap4to3Rev = {
 	.s = GENC_START,
 };
 
-EmuInputButtons ContMap4to6 = {
+EmuInputButtons ContMap4to6 =
+{
 	.u = GENC_UP,
 	.d = GENC_DOWN,
 	.l = GENC_LEFT,
@@ -247,7 +205,9 @@ EmuInputButtons ContMap4to6 = {
 	.ad = GENC_MODE,
 	.s = GENC_START,
 };
-EmuInputButtons ContMap6to6 = {
+
+EmuInputButtons ContMap6to6 =
+{
 	.u = GENC_UP,
 	.d = GENC_DOWN,
 	.l = GENC_LEFT,
@@ -261,7 +221,9 @@ EmuInputButtons ContMap6to6 = {
 	.sr = GENC_MODE,
 	.s = GENC_START,
 };
-EmuInputButtons ContMap4toViking = {
+
+EmuInputButtons ContMap4toViking = 
+{
 	.u = GENC_UP,
 	.d = GENC_DOWN,
 	.l = GENC_LEFT,
@@ -275,7 +237,9 @@ EmuInputButtons ContMap4toViking = {
 	.s = GENC_START,
 	.ad = GENC_MODE,
 };
-EmuInputButtons ContMap4toSF2 = {
+
+EmuInputButtons ContMap4toSF2 =
+{
 	.u = GENC_UP,
 	.d = GENC_DOWN,
 	.l = GENC_LEFT,
@@ -290,35 +254,76 @@ EmuInputButtons ContMap4toSF2 = {
 	.ad = GENC_MODE,
 };
 
-EmuInputButtons *ContMap[MAX_CONTROLLERS] = {
+EmuInputButtons ContMapNative3 =
+{
+	.u = GENC_UP,
+	.d = GENC_DOWN,
+	.l = GENC_LEFT,
+	.r = GENC_RIGHT,
+	.a = GENC_A,
+	.b = GENC_B,
+	.c = GENC_C,
+	.s = GENC_START,
+};
+
+EmuInputButtons ContMapNative6 =
+{
+	.u = GENC_UP,
+	.d = GENC_DOWN,
+	.l = GENC_LEFT,
+	.r = GENC_RIGHT,
+	.a = GENC_A,
+	.b = GENC_B,
+	.sr = GENC_C,
+	.x = GENC_X,
+	.y = GENC_Y,
+	.sl = GENC_Z,
+	.s = GENC_START,
+	.ad = GENC_MODE,
+};
+
+EmuInputButtons *ContMap[MAX_CONTROLLERS] =
+{
 	&ContMap4to3,
 	&ContMap4to3,
 	&ContMap4to3,
 	&ContMap4to3
 };
 
-static void Check_Click_And_Repeat(EmuInput *cont) {
+static void Check_Click_And_Repeat(EmuInput *cont) 
+{
 	int i;
 	int *click = &cont->c.a;
 	int *hold = &cont->h.a;
 	int *last = &cont->l.a;
 	int *holdtime = &cont->ht.a;
 	int *block = &cont->block.a;
-	for(i = 0; i < DC_BUTTON_COUNT; i++) {
-		if (hold[i] && !last[i]) {
+	
+	for(i = 0; i < DC_BUTTON_COUNT; i++) 
+	{
+		if (hold[i] && !last[i]) 
+		{
 			click[i] = 1;
 			holdtime[i] = 20;
-		} else {
+		} 
+		else 
+		{
 			click[i] = 0;
 		}
-		if (hold[i] && holdtime[i]-- == 0) {
+		
+		if (hold[i] && holdtime[i]-- == 0) 
+		{
 			holdtime[i] = 1;
 			click[i] = 1;
 		}
-		if (!hold[i]) {
+		
+		if (!hold[i]) 
+		{
 			block[i] = 0;
 		}
-		if (block[i]) {
+		
+		if (block[i]) 
+		{
 			click[i] = 0;
 			hold[i] = 0;
 			holdtime[i] = 0;
@@ -329,7 +334,8 @@ static void Check_Click_And_Repeat(EmuInput *cont) {
 #define CheckMapleButton(condition, var) \
 	do { var = !!(condition); } while(0)
 
-void Block_Hold(void) {
+void Block_Hold(void)
+{
 	memcpy(&Cont[0].block, &Cont[0].h, sizeof(Cont[0].block));
 	memcpy(&Cont[1].block, &Cont[1].h, sizeof(Cont[1].block));
 	memcpy(&Cont[2].block, &Cont[2].h, sizeof(Cont[2].block));
@@ -345,7 +351,8 @@ void Block_Hold(void) {
 
 }
 
-void Block_Click(void) {
+void Block_Click(void)
+{
 	memcpy(&Cont[0].block, &Cont[0].c, sizeof(Cont[0].block));
 	memcpy(&Cont[1].block, &Cont[1].c, sizeof(Cont[1].block));
 	memcpy(&Cont[2].block, &Cont[2].c, sizeof(Cont[2].block));
@@ -357,13 +364,14 @@ void Block_Click(void) {
 
 }
 
-
-void Update_DC_Controllers(void) {
+void Update_DC_Controllers(void)
+{
 	int i;
 	
 	inkey = kbd_get_key();
 	
-	for(i = 0; i < MAX_CONTROLLERS; i++) {
+	for(i = 0; i < MAX_CONTROLLERS; i++) 
+	{
 		//Copy currently held to last held
 		memcpy(&Cont[i].l, &Cont[i].h, sizeof(Cont[i].l));
 		//Clear old held and click
@@ -371,13 +379,28 @@ void Update_DC_Controllers(void) {
 		memset(&Cont[i].c, 0, sizeof(Cont[i].c));
 		
 		maple_device_t *contr = maple_enum_type(i, MAPLE_FUNC_CONTROLLER);
+		
 		if (contr == NULL)
+		{
 			continue;
+		}
+		
 		cont_state_t *cond = (cont_state_t *)maple_dev_status(contr);
+		
 		if (cond == NULL)
+		{
 			continue;
+		}
+		
 		Cont[i].type = CONT_4BUTTON;
-		if (__builtin_bswap32(contr->info.function_data[0]) & (CONT_CAPABILITY_C | CONT_CAPABILITY_Z)) {
+		
+		if (__builtin_bswap32(contr->info.function_data[0]) & (CONT_CAPABILITY_C | CONT_CAPABILITY_Z)) 
+		{
+			if (__builtin_bswap32(contr->info.function_data[0]) & CONT_CAPABILITY_D)
+			{
+				ContMap[i] = &ContMapNative6;
+			}
+			
 			Cont[i].type = CONT_6BUTTON;
 		} 
 		
@@ -385,6 +408,7 @@ void Update_DC_Controllers(void) {
 		CheckMapleButton(cond->buttons & CONT_A, Cont[i].h.a);
 		CheckMapleButton(cond->buttons & CONT_B, Cont[i].h.b);
 		CheckMapleButton(cond->buttons & CONT_C, Cont[i].h.c);
+		CheckMapleButton(cond->buttons & CONT_D, Cont[i].h.md);
 		CheckMapleButton(cond->buttons & CONT_X, Cont[i].h.x);
 		CheckMapleButton(cond->buttons & CONT_Y, Cont[i].h.y);
 		CheckMapleButton(cond->buttons & CONT_Z, Cont[i].h.z);
@@ -399,14 +423,22 @@ void Update_DC_Controllers(void) {
 		Cont[i].h.ad = cond->joyy >  2;
 		
 		if (cond->joyx > 0)
+		{
 			Cont[i].ax = ((float)cond->joyx / 127.0f);
+		}
 		else
+		{
 			Cont[i].ax = ((float)cond->joyx / 128.0f);
+		}
 		
 		if (cond->joyy > 0)
+		{
 			Cont[i].ay = (-(float)cond->joyy / 127.0f);
+		}
 		else
+		{
 			Cont[i].ay = (-(float)cond->joyy / 128.0f);
+		}
 		
 		Cont[i].sl = (float)cond->ltrig / 255;
 		Cont[i].sr = (float)cond->rtrig / 255;
@@ -415,13 +447,17 @@ void Update_DC_Controllers(void) {
 		Cont[i].h.sr = cond->rtrig != 0;
 		
 	}
+	
 	for(i = 0; i < 4; i++)
+	{
 		Check_Click_And_Repeat(Cont + i);
+	}
 }
 
 #undef CheckMapleButton
 static unsigned int EmptyButton;
-unsigned int *GensControllerMap[2][GENC_COUNT] = {
+unsigned int *GensControllerMap[2][GENC_COUNT] = 
+{
 	{
 		&EmptyButton,
 		&Controller_1_A,
@@ -454,16 +490,21 @@ unsigned int *GensControllerMap[2][GENC_COUNT] = {
 	}
 };
 
-void Update_Controllers(void) {
+void Update_Controllers(void) 
+{
 	Update_DC_Controllers();
 	
-	if (!Paused) {
+	if (!Paused) 
+	{
 		int j;
-		for(j = 0; j < 2; j++) {
+		
+		for(j = 0; j < 2; j++) 
+		{
 			//Reset Genesis buttons to unpressed
 			//On Genesis, pressed is 0, unpressed is 1
 			int i;
-			for(i = 0; i < GENC_COUNT; i++) {
+			for(i = 0; i < GENC_COUNT; i++) 
+			{
 				*GensControllerMap[j][i] = 1;
 			}
 			
@@ -472,55 +513,77 @@ void Update_Controllers(void) {
 			int *b = &Cont[j].h.a;
 			const EmuInputButtons *map_eib = ContMap[j];
 			const int *map = &map_eib->a;
-			for(i = 0; i < DC_BUTTON_COUNT; i++) {
+			
+			for(i = 0; i < DC_BUTTON_COUNT; i++) 
+			{
 				int GenButton = *map++;
 				int DCButton = *b++;
 				*GensControllerMap[j][GenButton] &= !DCButton;
 			}
 		}
 		
-		if (UICont->c.au || (UICont->h.a && UICont->h.b && UICont->h.x && UICont->h.y && UICont->c.s)) {
+		if (UICont->c.au || (UICont->h.a && UICont->h.b && UICont->h.x && UICont->h.y && UICont->c.s)) 
+		{
 			*GensControllerMap[0][GENC_START] = 1;
 			BringUpGameMenu();
 		}
 	}
 	
 	if (!DEBUGCOMMANDS)
+	{
 		return;
+	}
 	//~ dbgf("[%02x %02x] ", Ram_68k[0xF600], Ram_68k[0xF601]);
-	if ((inkey == (KBD_KEY_ESCAPE << 8)) || (UICont->h.sl && UICont->h.s)) {
+	if ((inkey == (KBD_KEY_ESCAPE << 8)) || (UICont->h.sl && UICont->h.s)) 
+	{
 		dbgf("Exit\n");
 		Gens_Running = 0;
 		extern int Reset_Input_Lockout;
 		Reset_Input_Lockout = 1;
 	}
-	if (inkey == (KBD_KEY_PRINT << 8)) {
+	
+	if (inkey == (KBD_KEY_PRINT << 8)) 
+	{
 		vid_screen_shot("/pc/home/alex/dc/gens4all/shot.xpm");
 	}
-	if (inkey == (KBD_KEY_F1 << 8)) {
+	
+	if (inkey == (KBD_KEY_F1 << 8)) 
+	{
 		Render_Point = !Render_Point;
 	}
-	if (inkey == (KBD_KEY_F5 << 8)) {
+	
+	if (inkey == (KBD_KEY_F5 << 8)) 
+	{
 		dbgf("Save state\n");
 		dbgf("Got %i\n", Save_State("/pc/home/alex/Emu/Genesis/gens4all.gsx"));
 	}
-	if (inkey == (KBD_KEY_F8 << 8)) {
+	
+	if (inkey == (KBD_KEY_F8 << 8)) 
+	{
 		dbgf("Load state\n");
 		dbgf("Got %i\n", Load_State("/pc/home/alex/Emu/Genesis/gens4all.gsx"));
 	}
-	if (inkey == 'r') {
+	
+	if (inkey == 'r') 
+	{
 		dbgf("Reset\n");
 		Reset_Genesis();
 	}
-	if (inkey == (KBD_KEY_F2 << 8)) {
+	
+	if (inkey == (KBD_KEY_F2 << 8)) 
+	{
 		PVR_GET(PVR_UNK_0080)++;
 		dbgf("Center: %i\n", PVR_GET(PVR_UNK_0080) & 0x7);
 	}
-	if (inkey == 's') {
+	
+	if (inkey == 's') 
+	{
 		Change_Sound();
 		dbgf("Sound %i\n", Sound_Enable);
 	}
-	/*if (inkey == 'w') {
+	
+	/*if (inkey == 'w') 
+	{
 		extern struct Reg_VDP_Type VDP_Reg;
 		
 		printf("HWin RIGHT: %i\n", VDP_Reg.Win_H_Pos >> 7);
@@ -528,19 +591,27 @@ void Update_Controllers(void) {
 		printf("VWin DOWN: %i\n", VDP_Reg.Win_V_Pos >> 7);
 		printf("VWin WVP: %i\n", VDP_Reg.Win_V_Pos & 0x1f);
 	}*/
-	if (inkey == 'M') {
+	
+	if (inkey == 'M') 
+	{
 		Sound_Enable = !Sound_Enable;
 	}
-	if (inkey == '!') {
+	
+	if (inkey == '!') 
+	{
 		printf("Gathering samples...\n");
 		fflush(stdout);
 		pfSampGo();
 	}
-	if (inkey == '@') {
+	
+	if (inkey == '@') 
+	{
 		pfSampStop();
 		pfSampSave("/pc/home/alex/dc/gens4all/prof.txt", 0);
 	}
-	if (inkey == 'f' || (UICont->c.y && UICont->h.sr)) {
+	
+	if (inkey == 'f' || (UICont->c.y && UICont->h.sr)) 
+	{
 		int i;
 		extern unsigned prof_total;
 		
@@ -563,19 +634,25 @@ void Update_Controllers(void) {
 		
 		frame_busy_avrg = last_frame_busy;
 	}
-	if (inkey == '[') {
+	
+	if (inkey == '[') 
+	{
 		int v = 0x00200033;
 		v |= 4 << 14;
 		v |= 4 << 8;
 		PVR_GET(PVR_UNK_007C) = v;
 	}
-	if (inkey == ']') {
+	
+	if (inkey == ']') 
+	{
 		int v = 0x002000ff;
 		v |= 31 << 14;
 		v |= 31 << 8;
 		PVR_GET(PVR_UNK_007C) = v;
 	}
-	if (inkey == ';') {
+	
+	if (inkey == ';') 
+	{
 		int cv = *(int*)0xa005f8098;
 		printf("PVR: %08x\n", cv);
 		printf("TL: %0i\n", (cv>>14) & 0x3ff);
@@ -584,26 +661,37 @@ void Update_Controllers(void) {
 		cv = *(int*)0xa005f807c;
 		printf("PVR: %08x\n", cv);
 	}
-	if (inkey == 'Y') {
+	
+	if (inkey == 'Y') 
+	{
 		int i, algo_type;
 		
-		if(YM2612.Inter_Step & 0x04000) {
+		if(YM2612.Inter_Step & 0x04000) 
+		{
 			algo_type = 0;
 			printf("Regular\n");
-		} else {
+		} 
+		else 
+		{
 			algo_type = 16;
 			printf("Interp.\n");
 		}
-		if(YM2612.LFOinc) {
+		
+		if(YM2612.LFOinc) 
+		{
 			printf("LFO enabled\n");
 			algo_type |= 8;
 		}
-		for(i = 0; i < 6; i++) {
+		
+		for(i = 0; i < 6; i++) 
+		{
 			printf("Ch %i: %i (Cnt %i)\n", i, YM2612.CHANNEL[i].ALGO + algo_type, YM2612.CHANNEL[i].SLOT[3].Ecnt);
 		}
+		
 		printf("Diff %i\n", (void*)&YM2612.CHANNEL[0].SLOT[3].Ecnt - (void*)&YM2612.CHANNEL[0]);
 	}
 }
+
 #if 0
 void Update_Controllers(void)
 {

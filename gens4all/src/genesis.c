@@ -85,10 +85,14 @@ int Init_Genesis (struct Rom *MD_Rom)
 		SRAM_End |= 0x00000001;
 
 		if ((SRAM_End - SRAM_Start) <= 2)
+		{
 			SRAM_Custom = 1;
+		}
 		else
+		{
 			SRAM_Custom = 0;
-
+		}
+		
 		Load_SRAM ();
 	}
 
@@ -122,10 +126,10 @@ int Init_Genesis (struct Rom *MD_Rom)
     }
 
 	/* Buscar nombre de ROM valido */
-	rom_name = (MD_Rom->Rom_Name_W[0] != '\0')?MD_Rom->Rom_Name_W:MD_Rom->Rom_Name;
+	rom_name = (MD_Rom->Rom_Name_W[0] != '\0') ? MD_Rom->Rom_Name_W : MD_Rom->Rom_Name;
 
-	sprintf (Str_Err, "Gens :: %s [%s]", rom_name,MD_Rom->Console_Name);
-	SetWindowText (Str_Err);
+	//sprintf (Str_Err, "Gens :: %s [%s]", rom_name,MD_Rom->Console_Name);
+	//SetWindowText (Str_Err);
 
 	VDP_Num_Vis_Lines = 224;
 	Gen_Version = 0x20 + 0x0;	// Version de la megadrive (0x0 - 0xF)
@@ -135,62 +139,66 @@ int Init_Genesis (struct Rom *MD_Rom)
 	M68K_Reset (0);
 	Z80_Reset ();
 	Reset_VDP ();
+	
+	if (strstr(MD_Rom->Version,"T-5740"))
+	{
+		Init_PS_mapper();
+	}
 
-  if (CPU_Mode)
+	if (CPU_Mode)
     {
-      CPL_Z80 = Round_Double ((((double) CLOCK_PAL / 15.0) / 50.0) / 312.0);
-      CPL_M68K = Round_Double ((((double) CLOCK_PAL / 7.0) / 50.0) / 312.0);
+		CPL_Z80 = Round_Double ((((double) CLOCK_PAL / 15.0) / 50.0) / 312.0);
+		CPL_M68K = Round_Double ((((double) CLOCK_PAL / 7.0) / 50.0) / 312.0);
 
 #ifdef SEGA_32X
-      CPL_MSH2 =
-	Round_Double (((((((double) CLOCK_PAL / 7.0) * 3.0) / 50.0) / 312.0) *
-		       (double) MSH2_Speed) / 100.0);
-      CPL_SSH2 =
-	Round_Double (((((((double) CLOCK_PAL / 7.0) * 3.0) / 50.0) / 312.0) *
-		       (double) SSH2_Speed) / 100.0);
+		CPL_MSH2 = Round_Double (((((((double) CLOCK_PAL / 7.0) * 3.0) / 50.0) / 312.0) * (double) MSH2_Speed) / 100.0);
+		CPL_SSH2 = Round_Double (((((((double) CLOCK_PAL / 7.0) * 3.0) / 50.0) / 312.0) * (double) SSH2_Speed) / 100.0);
 #endif
-
-      VDP_Num_Lines = 312;
-      VDP_Status |= 0x0001;
-
-      YM2612_Init (CLOCK_PAL / 7, Sound_Rate, YM2612_Improv);
-      PSG_Init (CLOCK_PAL / 15, Sound_Rate);
+		
+		VDP_Num_Lines = 312;
+		VDP_Status |= 0x0001;
+		
+		YM2612_Init (CLOCK_PAL / 7, Sound_Rate, YM2612_Improv);
+		PSG_Init (CLOCK_PAL / 15, Sound_Rate);
     }
-  else
+	else
     {
-      CPL_Z80 = Round_Double ((((double) CLOCK_NTSC / 15.0) / 60.0) / 262.0);
-      CPL_M68K = Round_Double ((((double) CLOCK_NTSC / 7.0) / 60.0) / 262.0);
-
+		CPL_Z80 = Round_Double ((((double) CLOCK_NTSC / 15.0) / 60.0) / 262.0);
+		CPL_M68K = Round_Double ((((double) CLOCK_NTSC / 7.0) / 60.0) / 262.0);
+		
 #ifdef SEGA_32X
-      CPL_MSH2 =
-	Round_Double (((((((double) CLOCK_NTSC / 7.0) * 3.0) / 60.0) /
-			262.0) * (double) MSH2_Speed) / 100.0);
-      CPL_SSH2 =
-	Round_Double (((((((double) CLOCK_NTSC / 7.0) * 3.0) / 60.0) /
-			262.0) * (double) SSH2_Speed) / 100.0);
+		CPL_MSH2 = Round_Double (((((((double) CLOCK_NTSC / 7.0) * 3.0) / 60.0) / 262.0) * (double) MSH2_Speed) / 100.0);
+		CPL_SSH2 = Round_Double (((((((double) CLOCK_NTSC / 7.0) * 3.0) / 60.0) / 262.0) * (double) SSH2_Speed) / 100.0);
 #endif
 
-      VDP_Num_Lines = 262;
-      VDP_Status &= 0xFFFE;
+		VDP_Num_Lines = 262;
+		VDP_Status &= 0xFFFE;
 
-      YM2612_Init (CLOCK_NTSC / 7, Sound_Rate, YM2612_Improv);
-      PSG_Init (CLOCK_NTSC / 15, Sound_Rate);
-    }
+		YM2612_Init (CLOCK_NTSC / 7, Sound_Rate, YM2612_Improv);
+		PSG_Init (CLOCK_NTSC / 15, Sound_Rate);
+	}
 
 	if (Auto_Fix_CS)
+	{
 		Fix_Checksum ();
+	}
 
 	dbgf("Init_Genesis: Sound_Enable is %i\n", Sound_Enable);
+	
 	if (Sound_Enable)
 	{
 		dbg("Initing_Sound");
 		End_Sound ();
 		
-		if (!Init_Sound ()) {
+		if (!Init_Sound ()) 
+		{
 			Sound_Enable = 0;
 			dbg("Could not init sound, disabling it");
-		} else
+		} 
+		else
+		{
 			Play_Sound ();
+		}
 	}
 
 

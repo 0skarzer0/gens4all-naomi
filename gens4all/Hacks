@@ -1,0 +1,14 @@
+src/loader.c:		return NextString(GLCurGame->strings, 2);
+src/loader.c:		return NextString(GLCurGame->strings, 3);
+src/util/save.c:		int GLSize = GL_CalcSRAMSize(GLCurGame->SRAMSize);
+src/util/save.c:		switch(GLCurGame->SRAM) 
+src/util/save.c:	if (GLCurGame && memcmp(GLCurGame->SaveExtension, "000", 3) != 0) 
+src/util/save.c:		memcpy(SaveName + len, GLCurGame->SaveExtension, 3);
+src/util/save.c:	if (GLCurGame && GLCurGame->SRAM == SAV_NONE)
+src/util/save.c:	if (GLCurGame && size_to_save < GL_CalcSRAMSize(GLCurGame->SRAMSize)) {
+src/util/save.c:		size_to_save = GL_CalcSRAMSize(GLCurGame->SRAMSize);
+src/main.c:		printf("%08x\n", GLCurGame->Hacks);
+src/main.c:		if (GLCurGame->Hacks & (1<<GH_SONIC_Z80_HACK))
+src/main.c:		if (GLCurGame->Hacks & (1<<GH_RISTAR_HACK))
+src/main.c:		if (GLCurGame->Hacks & (1<<GH_SCREEN_OFF_RENDER_HACK))
+src/main.c:		if (GLCurGame->Hacks & (1<<GH_SONIC2_AUTO_RENDER_HACK))

@@ -8,7 +8,6 @@ struct K_Def {
 extern struct K_Def Keys_Def[8];
 extern unsigned char Kaillera_Keys[16];
 
-unsigned int Get_Key(void);
 int Check_Key_Pressed(unsigned int key);
 
 #define MAX_CONTROLLERS	(4)
@@ -32,9 +31,10 @@ enum {
 
 #define CONT_4BUTTON 0
 #define CONT_6BUTTON 1
+
 typedef struct {
 	int a,b,c,x,y,z;
-	int s;	//start
+	int s, md;	//start
 	int u,d,l,r;	//D-pad directions
 	int au,ad,al,ar;	//Analog directions
 	int sl, sr;	//Shoulder buttons

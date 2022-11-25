@@ -11,6 +11,7 @@
 #include "cpu_z80.h"
 #include "vdp_io.h"
 #include "io.h"
+#include "eeprom_spi.h"
 
 #ifdef RAZE
 #include "raze/raze.h"
@@ -68,6 +69,8 @@ INLINE u8 M68K_Read_Byte_Misc(const u32 addr);
 INLINE u8 M68K_Read_Byte_VDP(const u32 addr);
 INLINE u8 M68K_Read_Byte_Ram(const u32 addr);
 
+INLINE u8 M68K_Read_Byte_PS(const u32 addr);
+
 /* Read word */
 INLINE u16 M68K_Read_Word_Rom0(const u32 addr);
 INLINE u16 M68K_Read_Word_Rom1(const u32 addr);
@@ -90,10 +93,10 @@ INLINE u16 M68K_Read_Word_Ram(const u32 addr);
 INLINE u16 M68K_Read_Word_Misc(const u32 addr);
 INLINE u16 M68K_Read_Word_VDP(const u32 addr);
 
+INLINE u16 M68K_Read_Word_PS(const u32 addr);
 
 /* Writes */
 INLINE void M68K_Write_Bad(const u32 addr, const u8 data);
-
 
 /* Write byte */
 INLINE void M68K_Write_Byte_Bad(const u32 addr, const u8 data);
@@ -101,7 +104,6 @@ INLINE void M68K_Write_Byte_SRAM(const u32 addr, const u8 data);
 INLINE void M68K_Write_Byte_Ram(const u32 addr, const u8 data);
 INLINE void M68K_Write_Byte_Misc(const u32 addr, const u8 data);
 INLINE void M68K_Write_Byte_VDP(const u32 addr, const u8 data);
-
 
 /* Write word */
 INLINE void M68K_Write_Word_Bad(const u32 addr, const u16 data);
@@ -140,7 +142,6 @@ INLINE void M68K_Write_Word_BRAM(const u32 addr, const u16 data);
 INLINE void M68K_Write_Word_BRAM_W(const u32 addr, const u16 data);
 INLINE void M68K_Write_Word_Misc_CD(const u32 addr, const u16 data);
 
-
 /* 32 X */
 INLINE u8 M68K_Read_Byte_Bios_32X(const u32 addr);
 INLINE u8 M68K_Read_Byte_BiosR_32X(const u32 addr);
@@ -154,15 +155,12 @@ INLINE u16 M68K_Read_Word_32X_FB0(const u32 addr);
 INLINE u16 M68K_Read_Word_32X_FB1(const u32 addr);
 INLINE u16 M68K_Read_Word_Misc_32X(const u32 addr);
 
-
 INLINE void M68K_Write_Byte_32X_FB0(const u32 addr, const u16 data);
 INLINE void M68K_Write_Byte_32X_FB1(const u32 addr, const u16 data);
 INLINE void M68K_Write_Byte_Misc_32X(const u32 addr, const u16 data);
 INLINE void M68K_Write_Word_32X_FB0(const u32 addr, const u16 data);
 INLINE void M68K_Write_Word_32X_FB1(const u32 addr, const u16 data);
 INLINE void M68K_Write_Word_Misc_32X(const u32 addr, const u16 data);
-
-
 
 /* Memory layout definitions */
 
@@ -202,7 +200,6 @@ u32 Genesis_M68K_Read_Byte_Table[0x20] =
 	(u32) M68K_Read_Byte_Ram,		// 0xF80000 - 0xFFFFFF
 };
 
-
 u32 Genesis_M68K_Read_Word_Table[0x20] =
 {
 	(u32) M68K_Read_Word_Rom0,		// 0x000000 - 0x07FFFF
@@ -238,7 +235,6 @@ u32 Genesis_M68K_Read_Word_Table[0x20] =
 	(u32) M68K_Read_Word_Ram,		// 0xF00000 - 0xF7FFFF
 	(u32) M68K_Read_Word_Ram,		// 0xF80000 - 0xFFFFFF
 };
-
 
 u32 Genesis_M68K_Write_Byte_Table[0x10] =
 {
@@ -391,7 +387,6 @@ u32 M68K_Write_Word_Table[0x10] =
 	(u32) M68K_Write_Bad,
 	(u32) M68K_Write_Bad
 };
-
 
 u32 SegaCD_M68K_Read_Byte_Table[0x20] =
 {
@@ -597,7 +592,6 @@ u32 _32X_M68K_Write_Byte_Table[0x10] =
 	(u32) M68K_Write_Byte_Ram,		// 0xF00000 - 0xFFFFFF
 };
 
-
 u32 _32X_M68K_Write_Word_Table[0x10] =
 {
 	(u32) M68K_Write_Bad,			// 0x000000 - 0x0FFFFF
@@ -618,14 +612,13 @@ u32 _32X_M68K_Write_Word_Table[0x10] =
 	(u32) M68K_Write_Word_Ram,		// 0xF00000 - 0xFFFFFF
 };
 
-
+static u8 PS_unlock = 0;
 int CPU_Mode;
 int Game_Mode;
 int Gen_Version;
 int Z80_M68K_Cycle_Tab[CycleTabSize];
 u8 Ram_68k[64 * 1024];
 u8 *Rom_Data;
-//~ u8 Ram_Backup_Ex[64 * 1024];
 u8 Genesis_Rom[2 * 1024];
 u8 _32X_Genesis_Rom[256];
 u8 SRAM[64 * 1024];
@@ -648,30 +641,10 @@ int Last_BUS_REQ_St;
 int Bank_M68K;
 int Bank_SH2;
 
-//~ int CPL_M68K;
-//~ int CPL_S68K;
-//~ int CPL_Z80;
-//~ int Cycles_M68K;
-//~ int Cycles_S68K;
-//~ int Cycles_Z80;
-
 struct CPUCycles CycleData;
 
 u8 Fake_Fetch;
-
-/*
-extern int Controller_1_Counter;
-extern int Controller_1_Delay;
-extern int Controller_1_State;
-extern int Controller_1_COM;
-extern int Controller_2_Counter;
-extern int Controller_2_Delay;
-extern int Controller_2_State;
-extern int Controller_2_COM;
-//extern Memory_Control_Status;
-*/
 extern u16 Cell_Conv_Tab[64 * 1024];
-//~ extern int VDP_Current_Line;
 
 #ifndef RAZE
 extern Z80_CONTEXT M_Z80;
@@ -680,7 +653,7 @@ extern Z80_CONTEXT M_Z80;
 void Init_Memory_M68K(int System_ID)
 {
 	int i;
-
+	
 	switch(System_ID)
 	{
 		case GENESIS:
@@ -690,17 +663,47 @@ void Init_Memory_M68K(int System_ID)
 				M68K_Read_Byte_Table[i] = Genesis_M68K_Read_Byte_Table[i];
 				M68K_Read_Word_Table[i] = Genesis_M68K_Read_Word_Table[i];
 			}
+			
 			for (i=0;i<16;i++)
 			{
 				// Inicializar manejadores de escritura
 				M68K_Write_Byte_Table[i] = Genesis_M68K_Write_Byte_Table[i];
 				M68K_Write_Word_Table[i] = Genesis_M68K_Write_Word_Table[i];
 			}
+			
+			if (PS_unlock)
+			{
+				Init_PS_mapper();
+			}
+			
 			break;
 		case SEGACD:	// TODO
 			break;
 		case S32X:		// TODO
 			break;
+	}
+}
+
+void Init_PS_mapper()
+{	
+	eeprom_spi_init();
+	PS_unlock = 0;
+	
+	for (int i = 0; i < 16; i++)
+	{
+		// Inicializar manejadores de lectura
+		M68K_Read_Byte_Table[i] = &M68K_Read_Byte_PS;
+		M68K_Read_Word_Table[i] = &M68K_Read_Word_PS;
+	}
+}
+
+void Unlock_PS_mapper()
+{
+	for (int i = 0; i < 8; i++)
+	{
+		// Inicializar manejadores de lectura
+		M68K_Read_Byte_Table[i] = Genesis_M68K_Read_Byte_Table[i];
+		M68K_Read_Word_Table[i] = Genesis_M68K_Read_Word_Table[i];
 	}
 }
 
@@ -795,22 +798,22 @@ INLINE u8 M68K_Read_Byte_RomB(const u32 addr)
 
 INLINE u8 M68K_Read_Byte_RomC(const u32 addr)
 {
-	return 0;
+	return Rom_Data[(addr & 0x7FFFF) ^ 0x600001];
 }
 
 INLINE u8 M68K_Read_Byte_RomD(const u32 addr)
 {
-	return 0;
+	return Rom_Data[(addr & 0x7FFFF) ^ 0x680001];
 }
 
 INLINE u8 M68K_Read_Byte_RomE(const u32 addr)
 {
-	return 0;
+	return Rom_Data[(addr & 0x7FFFF) ^ 0x700001];
 }
 
 INLINE u8 M68K_Read_Byte_RomF(const u32 addr)
 {
-	return 0;
+	return Rom_Data[(addr & 0x7FFFF) ^ 0x780001];
 }
 
 INLINE u8 M68K_Read_Byte_Ram(const u32 addr)
@@ -818,12 +821,10 @@ INLINE u8 M68K_Read_Byte_Ram(const u32 addr)
 	return Ram_68k[(addr & 0xFFFF) ^ 1];
 }
 
-
 INLINE u8 get_genesis_specs()
 {
 	return ((((Game_Mode << 1) | CPU_Mode) << 6) | Gen_Version);
 }
-
 
 INLINE u8 M68K_Read_Byte_Misc(const u32 addr)
 {
@@ -838,7 +839,6 @@ INLINE u8 M68K_Read_Byte_Misc(const u32 addr)
 			{
 				/* Z80 on */
 				val = 0x81;
-//				return val;
 			}
 			else
 			{
@@ -847,12 +847,10 @@ INLINE u8 M68K_Read_Byte_Misc(const u32 addr)
 				{
 					/* bus taken */
 					val = 0x80;
-//					return val;
 				}
 				else
 				{
 					val = (Last_BUS_REQ_St | 0x80);
-//					return val;
 				}
 			}
 		}
@@ -861,9 +859,12 @@ INLINE u8 M68K_Read_Byte_Misc(const u32 addr)
 			/* No bus request */
 			if (addr > 0xA1000D)
 			{
+				if (PS_unlock && addr == 0xA1300B)
+				{
+					return eeprom_spi_read(addr);
+				}
 				/* wrong access */
 				val = WRONG_ACCESS_DATA;
-//				return val;
 			}
 			else
 			{
@@ -901,8 +902,6 @@ INLINE u8 M68K_Read_Byte_Misc(const u32 addr)
 						val = WRONG_ACCESS_DATA;
 						break;
 				}
-
-//				return val;	
 			}
 		}
 	}
@@ -912,8 +911,6 @@ INLINE u8 M68K_Read_Byte_Misc(const u32 addr)
 		{
 			/* wrong access */
 			val = WRONG_ACCESS_DATA;
-//			return val;
-
 		}
 		else
 		{
@@ -925,7 +922,6 @@ INLINE u8 M68K_Read_Byte_Misc(const u32 addr)
 			if (Ristar_Hack && addr == 0xa01fff) {
 				val = 0;
 			}
-//			return val;
 		}
 	}
 	return val;
@@ -979,6 +975,35 @@ INLINE u8 M68K_Read_Byte_VDP(const u32 addr)
 	}
 }
 
+INLINE u8 M68K_Read_Byte_PS(const u32 addr)
+{
+	u8 val = Rom_Data[(addr & 0x7FFF) ^ 1];
+	
+	switch (addr & 0x7FFFF)
+	{
+		case 0x18104:
+			PS_unlock |= 1;
+			break;
+		
+		case 0x181C8:
+			PS_unlock |= 2;
+			break;
+		
+		case 0x181C9:
+			PS_unlock |= 4;
+			break;
+		
+		default:
+			break;
+	}
+	
+	if (PS_unlock == 7)
+	{
+		Unlock_PS_mapper();
+	}
+	
+	return val;
+}
 
 /* Read word */
 
@@ -1067,22 +1092,22 @@ INLINE u16 M68K_Read_Word_RomB(const u32 addr)
 
 INLINE u16 M68K_Read_Word_RomC(const u32 addr)
 {
-	return 0;
+	return *((u16 *)(&Rom_Data[(addr & 0x7FFFE) + 0x600000]));
 }
 
 INLINE u16 M68K_Read_Word_RomD(const u32 addr)
 {
-	return 0;
+	return *((u16 *)(&Rom_Data[(addr & 0x7FFFE) + 0x680000]));
 }
 
 INLINE u16 M68K_Read_Word_RomE(const u32 addr)
 {
-	return 0;
+	return *((u16 *)(&Rom_Data[(addr & 0x7FFFE) + 0x700000]));
 }
 
 INLINE u16 M68K_Read_Word_RomF(const u32 addr)
 {
-	return 0;
+	return *((u16 *)(&Rom_Data[(addr & 0x7FFFE) + 0x780000]));
 }
 
 INLINE u16 M68K_Read_Word_Ram(const u32 addr)
@@ -1186,7 +1211,6 @@ INLINE u16 M68K_Read_Word_Misc(const u32 addr)
 	return val;
 }
 
-
 INLINE u16 M68K_Read_Word_VDP(const u32 addr)
 {
 	u16 val;
@@ -1219,6 +1243,36 @@ INLINE u16 M68K_Read_Word_VDP(const u32 addr)
 		val = Read_VDP_Data();
 		return val;
 	}
+}
+
+INLINE u16 M68K_Read_Word_PS(const u32 addr)
+{
+	u16 val = *((u16 *)(&Rom_Data[addr & 0x7FFE]));
+	
+	switch (addr & 0x7FFFF)
+	{
+		case 0x18104:
+			PS_unlock |= 1;
+			break;
+		
+		case 0x181C8:
+			PS_unlock |= 2;
+			break;
+		
+		case 0x181C9:
+			PS_unlock |= 4;
+			break;
+		
+		default:
+			break;
+	}
+	
+	if (PS_unlock == 7)
+	{
+		Unlock_PS_mapper();
+	}
+	
+	return val;
 }
 
 /* Writes */
@@ -1331,10 +1385,44 @@ INLINE void M68K_Write_Byte_Misc(const u32 addr, const u8 data)
 					/* No controller IO */
 					if (addr < 0xA130F1)
 					{
+						/* Pier Solar !TIME */
+						if (addr > 0xA13000 && PS_unlock)
+						{
+							switch (addr & 0xFF)
+							{
+								case 0x03:
+									M68K_Read_Byte_Table[5] = Genesis_M68K_Read_Byte_Table[data & 0xF];
+									M68K_Read_Word_Table[5] = Genesis_M68K_Read_Word_Table[data & 0xF];
+									//printf("table 5 = %d\n", data);
+									break;
+								
+								case 0x05:
+									M68K_Read_Byte_Table[6] = Genesis_M68K_Read_Byte_Table[data & 0xF];
+									M68K_Read_Word_Table[6] = Genesis_M68K_Read_Word_Table[data & 0xF];
+									//printf("table 6 = %d\n", data);
+									break;
+								
+								case 0x07:
+									M68K_Read_Byte_Table[7] = Genesis_M68K_Read_Byte_Table[data & 0xF];
+									M68K_Read_Word_Table[7] = Genesis_M68K_Read_Word_Table[data & 0xF];
+									//printf("table 7 = %d\n", data);
+									break;
+								
+								case 0x09: /* SPI memory */
+									eeprom_spi_write(data);
+									break;
+								
+								case 0x01: /* R/W lock */
+								default:
+									/* Ignore */
+									return;
+							}
+							
+						}
 						/* Wrong access */
 						return;
 					}
-					else
+					else if(!PS_unlock)
 					{
 						if (addr == 0xA130F1)
 						{
@@ -1436,6 +1524,7 @@ INLINE void M68K_Write_Byte_VDP(const u32 addr, const u8 data)
 
 INLINE void M68K_Write_Word_Bad(const u32 addr, const u16 data)
 {
+	
 }
 
 
@@ -1595,9 +1684,9 @@ INLINE void M68K_Write_Word_Misc(const u32 addr, const u16 data)
 							}
 							else
 							{
-								u16 data_aux = (data & 0xFF00) | ((data >> 8) & 0xFF);
+								//u16 data_aux = (data & 0xFF00) | ((data >> 8) & 0xFF);
 								u8 dst_bnk = (addr & 0xF) >> 1;
-								u8 src_bnk = data_aux & 0x1F;
+								u8 src_bnk = (data >> 8) & 0x1F;
 
 								M68K_Read_Byte_Table[dst_bnk] = Genesis_M68K_Read_Byte_Table[src_bnk];
 								M68K_Read_Word_Table[dst_bnk] = Genesis_M68K_Read_Word_Table[src_bnk];

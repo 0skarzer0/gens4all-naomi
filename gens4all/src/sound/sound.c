@@ -575,7 +575,10 @@ static void Dump_Sound_Mono (short *Dest, const int length)
 int Write_Sound_Buffer (void *Dump_Buf)
 {
 	if (!Sound_Enable)
-		return;
+	{
+		return 0;
+	}
+	
 	prof_start(PROF_YMH);
 	//~ if (audio_len > (1880*2)) {
 	//~ if (audio_len > (2500*2)) {

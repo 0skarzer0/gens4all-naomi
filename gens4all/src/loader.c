@@ -119,10 +119,10 @@ static GameListEntry *games = ((GameListHeader*)&dirnamebuff)->games;
 
 #define MAX_DIRNAME	500
 static char curdir[MAX_DIRNAME] = "/";
-//~ static char curdir[MAX_DIRNAME] = "/pc/home/alex/Emu/Genesis/sm";
-//~ static char curdir[MAX_DIRNAME] = "/pc/home/alex/Emu/Genesis";
+char *current_game_dir = curdir;
 
-static int IsDir(const char *name) {
+static int IsDir(const char *name) 
+{
 	struct stat dstat;
 	memset(&dstat, 0, sizeof(dstat));
 	stat(name, &dstat);
@@ -130,23 +130,57 @@ static int IsDir(const char *name) {
 	return S_ISDIR(dstat.st_mode);
 }
 
-static int string_length_pixels(struct BMFFont *font, const char * str) {
+static int string_length_pixels(struct BMFFont *font, const char * str) 
+{
 	int len = strlen(str);
 	return BMFStringWidth(font, AsciiReader, str, len);
 }
 
-static void puts_center(struct BMFFont *font, float y, const char * str) {
+static void puts_center(struct BMFFont *font, float y, const char * str) 
+{
 	BMFputs(font, 320 - string_length_pixels(font, str)/2, y, 1, AsciiReader, str);
 }
-static void puts_center_x(struct BMFFont *font, float x, float y, float z, int color, const char * str) {
+
+static void puts_center_x(struct BMFFont *font, float x, float y, float z, int color, const char * str) 
+{
 	BMFcputs(font, x - string_length_pixels(font, str)/2, y, z, color, AsciiReader, str);
 }
-int dircmp (const void *a, const void *b) {
+
+/*int dircmp (const void *a, const void *b) 
+{
 	const LoadDirEntry *ad = a;
 	const LoadDirEntry *bd = b;
-	return strcmp(ad->name, bd->name);
+	
+	const char *s1 = ((LoadDirEntry *) a)->name, *s2 = ((LoadDirEntry *) b)->name;
+	
+	while (toupper(*s1) == toupper(*s2))
+	{
+		if (*s1 == 0)
+			return 0;
+		s1++;
+		s2++;
+	}
+	
+	return toupper(*(unsigned const char *)s1) - toupper(*(unsigned const char *)(s2));
+}*/
+
+static int alpha_sort(dirent_t *a, dirent_t *b)
+{
+	const char *s1 = a->name, *s2 = b->name;
+	
+	while (toupper(*s1) == toupper(*s2))
+	{
+		if (*s1 == 0)
+			return 0;
+		s1++;
+		s2++;
+	}
+	
+	return toupper(*(unsigned const char *)s1) - toupper(*(unsigned const char *)(s2));
 }
-static void LoadGameList(const char *list) {
+
+static void LoadGameList(const char *list) 
+{
 	ListingDirMode = 0;
 	
 	printf("Opening: %s\n", list);
@@ -172,10 +206,11 @@ static void LoadGameList(const char *list) {
 	
 	//Adjust string pointers
 	int str_ofs = (int)&dirnamebuff;
-	int i;
-	for(i = 0; i < gl->game_cnt; i++) {
+	
+	for(int i = 0; i < gl->game_cnt; i++) 
+	{
 		uintptr_t str = (uintptr_t)games[i].strings;
-		//~ printf("%i %p: %08x %i\n", i, (void*)(games+i) - (void*)dirnamebuff, str, str);
+		
 		assert(str < readamt);
 		games[i].strings += str_ofs;
 	}
@@ -187,52 +222,72 @@ static void LoadGameList(const char *list) {
 	printf("Header size: %i\n", sizeof(GameListHeader));
 	printf("Game entry: %i\n", sizeof(GameListEntry));
 }
-static const char * NextString(const char * str, int idx) {
-	while(idx--) {
+
+static const char * NextString(const char * str, int idx) 
+{
+	while(idx--) 
+	{
 		str = strrchr(str, 0) + 1;
 	}
 	return str;
 }
-static const char * GetGameName(int idx) {
+
+static const char * GetGameName(int idx) 
+{
 	return games[idx].strings;
 }
-static const char * GetRomName(int idx) {
+
+static const char * GetRomName(int idx) 
+{
 	return NextString(games[idx].strings, 1);
 }
-static const char * GetSaveTitle(int idx) {
+
+static const char * GetSaveTitle(int idx) 
+{
 	return NextString(games[idx].strings, 2);
 }
-static const char * GetSaveVMUTitle(int idx) {
+
+static const char * GetSaveVMUTitle(int idx) 
+{
 	return NextString(games[idx].strings, 3);
 }
 
-const char * GetCurGameSaveTitle() {
+const char * GetCurGameSaveTitle() 
+{
 	if (GLCurGame)
+	{
 		return NextString(GLCurGame->strings, 2);
-	else
-		return "Gens4All Save Data";
+	}
+	
+	return "Gens4All Save Data";
 }
-const char * GetCurGameSaveVMUTitle() {
+
+const char * GetCurGameSaveVMUTitle() 
+{
 	if (GLCurGame)
+	{
 		return NextString(GLCurGame->strings, 3);
-	else
-		return "Gens4All Save Data";
+	}
+	
+	return "Gens4All Save Data";
 }
 
-static int LoadDir(const char *dir) {
-	DIR *d;
+static int LoadDir(const char *dir) 
+{
+	file_t f;
+	dirent_t *ent;
+	dirent_t *sorts = (dirent_t *) malloc(sizeof(dirent_t));
+	int n = 0;
 	
-	int dir_is_root = strcmp(dir, "/") == 0;
+	f = fs_open(dir, O_RDONLY | O_DIR);
 	
-	chdir(dir);
-	d = opendir(".");
-
-	if (d == NULL) {
-		chdir(curdir);
+	if(f == FILEHND_INVALID) 
+	{
 		return -1;
 	}
 	
-	if (1) {
+	if (1) 
+	{
 		read_cont();
 		pvr_wait_ready();
 		pvr_scene_begin();
@@ -244,47 +299,91 @@ static int LoadDir(const char *dir) {
 		pvr_scene_finish();
 	}
 	
-	int cnt = 0;
+	ListingDirMode = 1;
 	int namepos = 0;
 	
-	ListingDirMode = 1;
+	while ((ent = fs_readdir(f)) != NULL) 
+	{
+		if(ent->name[0] != '.') 
+		{
+			if (n)
+				sorts = (dirent_t *) realloc((void *) sorts, (sizeof(dirent_t)*(n+1)));
+			
+			memcpy(&sorts[n], ent, sizeof(dirent_t));
+			n++;
+		}
+		watchdog_pet();	//Listing PC dirs over BBA is slow
+	}
 	
-	struct dirent *de = readdir(d);
-	while(de) {
-		if (cnt >= MAXDIRENTRIES)
-			break;
-		
-		//Don't list hidden files
-		if (de->d_name[0] != '.') {
-			//Record name pointer and dir-ness
-			//KOS says nothing in root counts as a directory. If we are moving into root, treat it as a directory anyways.
-			direntries[cnt].is_dir = dir_is_root || IsDir(de->d_name);
+	strcpy(curdir, dir);
+	chdir(curdir);
+	
+	if (SORTDIR)
+	{
+		qsort((void *) sorts, n, sizeof(dirent_t), (int (*)(const void*, const void*)) alpha_sort);
+	}
+	
+	int cnt = 0;
+	
+	for (int i = 0; i < n; i++)
+	{
+		if (sorts[i].attr)
+		{
+			direntries[cnt].is_dir = 1;
 			direntries[cnt].name = dirnamebuff + namepos;
 			
 			//Save name to buffer
-			int namelen = strlen(de->d_name);
-			memcpy(dirnamebuff + namepos, de->d_name, namelen);
+			int namelen = strlen(sorts[i].name);
+			memcpy(dirnamebuff + namepos, sorts[i].name, namelen);
 			dirnamebuff[namepos + namelen] = 0;
 			namepos += namelen+2;
-			
 			cnt++;
 		}
-		watchdog_pet();	//Listing PC dirs over BBA is slow
-		de = readdir(d);
 	}
-
-	closedir(d);
 	
-	strcpy(curdir, dir);
+	for (int i = 0; i < n; i++)
+	{
+		if (!sorts[i].attr)
+		{
+			int namelen = strlen(sorts[i].name);
+			
+			if (namelen < 5)
+			{
+				continue;
+			}
+			
+			char *ext = sorts[i].name + namelen - 4;
+			
+			if (!strcasecmp(ext, ".bin") ||
+				!strcasecmp(ext, ".gen") ||
+				!strcasecmp(ext, ".smd") ||
+				!strcasecmp(ext, ".32x") ||
+				!strcasecmp(ext, ".iso") ||
+				!strcasecmp(ext, ".zsg") ||
+				!strcasecmp(ext, ".zip") ||
+				!strcasecmp(ext+1, ".gz"))
+			{
+				direntries[cnt].is_dir = 0;
+				direntries[cnt].name = dirnamebuff + namepos;
+				
+				//Save name to buffer
+				memcpy(dirnamebuff + namepos, sorts[i].name, namelen);
+				dirnamebuff[namepos + namelen] = 0;
+				namepos += namelen+2;
+				cnt++;
+			}
+		}
+	}
+	
 	direntrycnt = cnt;
-	
-	if (SORTDIR)
-		qsort(direntries, cnt, sizeof(LoadDirEntry), &dircmp);
+	free(sorts);
+	fs_close(f);
 	
 	return 0;
 }
 
-static void init_loader_video() {
+static void init_loader_video() 
+{
 	pvr_shutdown();
 	vid_init(DM_640x480, PM_RGB565);
 	pvr_init(&loader_pvr_params);
@@ -293,6 +392,7 @@ static void init_loader_video() {
 	chdir("/rd/");
 	font = BMFLoad("notosans.fnt", "vq");
 	titlefont = BMFLoad("genesis.fnt", "vq");
+	
 	chdir(curdir);
 }
 
@@ -379,51 +479,61 @@ void UpdateListCursor(int size) {
 	if (viewtop < 0) viewtop = 0;
 }
 
-
-
-void PrintGameListName(float y, int idx) {
+void PrintGameListName(float y, int idx) 
+{
 	BMFprintf(font, 40+30, y, 1, " %s", GetGameName(idx));
 }
+
 static float dirmarkwidth;
-void PrintDirName(float y, int idx) {
+void PrintDirName(float y, int idx) 
+{
 	if (direntries[idx].is_dir)
 		BMFprintf(font, 40, y, 1, "[D]");
 	BMFprintf(font, 40 + dirmarkwidth, y, 1, " %s", 
 		direntries[idx].name);
 }
 
-static void DrawGameList() {
-	
+static void DrawGameList() 
+{
 	DrawList(&PrintGameListName, gl->game_cnt);
-	return;
 }
 
-static struct {
+static struct 
+{
 	int x, y;
 } IndexSelection = {2, 2};
-static const char * IndexOptions[] = {
+
+static const char * IndexOptions[] = 
+{
 	"!", "#", "A", "B", "C", "D", "E", "F", 
 	"G", "H", "I", "J", "K", "L", "M",
 	"N", "O", "P", "Q", "R", "S", "T", 
-	"U", "V", "W", "X", "Y", "Z", " "};
+	"U", "V", "W", "X", "Y", "Z", " "
+};
 
 #define IDX_SIZE	29
 #define IDX_COLS	6
 #define IDX_ROWS	5
 #define IDX_LAST_ROW	(IDX_ROWS-1)
 #define IDX_LAST_ROW_COLS	(IDX_SIZE % IDX_COLS)
-static void GameListIndex() {
+
+static void GameListIndex()
+{
 	int selectid = IndexSelection.y * IDX_COLS + IndexSelection.x;
-	if (click.a && gl->index[selectid] != -1 && selectid < IDX_SIZE) {
+	if (click.a && gl->index[selectid] != -1 && selectid < IDX_SIZE)
+	{
 		cursorpos = gl->index[selectid];
 		viewtop = cursorpos - linesvisible/2;
 		loader_mode = &game_list;
 		return;
 	}
-	if (click.b) {
+	
+	if (click.b) 
+	{
 		loader_mode = &game_list;
 		return;
 	}
+	
 	if (click.u) IndexSelection.y--;
 	if (click.d) IndexSelection.y++;
 	if (click.l) IndexSelection.x--;
@@ -432,8 +542,10 @@ static void GameListIndex() {
 	if (IndexSelection.x >= IDX_COLS) IndexSelection.x = 0;
 	if (IndexSelection.y < 0) IndexSelection.y = IDX_ROWS-1;
 	if (IndexSelection.y >= IDX_ROWS) IndexSelection.y = 0;
-	if (IndexSelection.y == IDX_LAST_ROW) {
-		if (IndexSelection.x >= IDX_LAST_ROW_COLS) {
+	if (IndexSelection.y == IDX_LAST_ROW)
+	{
+		if (IndexSelection.x >= IDX_LAST_ROW_COLS)
+		{
 			if (click.r) IndexSelection.x = 0;
 			if (click.l) IndexSelection.x = IDX_LAST_ROW_COLS-1;
 			if (click.d) IndexSelection.y = 0;
@@ -477,22 +589,22 @@ static void GameListIndex() {
 	
 	//Draw letters
 	int i;
-	for(i = 0; i < IDX_SIZE; i++) {
+	for(i = 0; i < IDX_SIZE; i++)
+	{
 		puts_center_x(font,
 			(i%IDX_COLS) * charwidth*2 + leftedgec, (i/IDX_COLS) * font->lineheight + topedge, 3,
 			gl->index[i] != -1 ? 0xffffffff : 0x80d0d0d0,
 			IndexOptions[i]);
 	}
 	
-	puts_center_x(font, 320,
-		topedge + IDX_ROWS * font->lineheight, 3, -1,
-		"(A) Jump   (B) Back");
+	puts_center_x(font, 320, topedge + IDX_ROWS * font->lineheight, 3, -1, "(A) Jump   (B) Back");
 	
 	pvr_list_finish();
 	pvr_scene_finish();
 }
 
-static void RunGame(const char *fname) {
+static void RunGame(const char *fname)
+{
 	//Shut down loader renderer
 	pvr_wait_ready();
 	BMFFree(font);
@@ -504,24 +616,26 @@ static void RunGame(const char *fname) {
 	extern int Gens_Running;
 	Gens_Running = 1;
 	
-	//~ printf("Playing \"%s\"\n", GetRomName(cursorpos));
-	printf("Curdir: %s\n", curdir);
 	extern int run(const char *rom_filename);
 	int runresult = run(fname);
 	
 	//Restore renderer
 	init_loader_video();
 	
-	if (Has_SRAM_Changed()) {
-		if (Prepare_Save_SRAM()) {
+	if (Has_SRAM_Changed()) 
+	{
+		if (Prepare_Save_SRAM()) 
+		{
 			loader_mode = &update_save;
 			return;
 		}
 	}
 }
 
-static void game_list() {
-	if (ListingDirMode) {
+static void game_list() 
+{
+	if (ListingDirMode) 
+	{
 		LoadGameList(GAMELISTFNAME);
 	}
 		
@@ -537,7 +651,8 @@ static void game_list() {
 		if (GetRomName(cursorpos)[0] == 0)
 			return;
 		
-		if (games[cursorpos].GameList) {
+		if (games[cursorpos].GameList) 
+		{
 			LoadGameList(GetRomName(cursorpos));
 			cursorpos = 0;
 			viewtop = 0;
@@ -571,7 +686,8 @@ static void game_list() {
 	pvr_scene_finish();
 }
 
-static void navigate_dir() {
+static void navigate_dir() 
+{
 	if (!ListingDirMode)
 		LoadDir(curdir);
 	
@@ -583,9 +699,12 @@ static void navigate_dir() {
 	UpdateListCursor(direntrycnt);
 	
 	//Go up directory
-	if (click.b) {
+	if (click.b) 
+	{
 		char *lastslash = strrchr(curdir, '/');
-		if (lastslash) {
+		
+		if (lastslash) 
+		{
 			//Drop the last directory level, and it's slash, off
 			int parentdirnamelen = lastslash - curdir;
 			char parentdir[NAMEBUFSIZE];
@@ -593,7 +712,8 @@ static void navigate_dir() {
 			parentdir[parentdirnamelen] = 0;
 			
 			//Are we moving into the root directory? If we dropped the rightmost slash off and have nothing left, we are moving into root.
-			if (!LoadDir(parentdirnamelen ? parentdir : "/")) {
+			if (!LoadDir(parentdirnamelen ? parentdir : "/")) 
+			{
 				//If we move into a new directory, reset the cursor and view position
 				cursorpos = 0;
 				viewtop = 0;
@@ -602,15 +722,21 @@ static void navigate_dir() {
 	}
 	
 	//Go into directory
-	if (click.a && direntries[cursorpos].is_dir) {
+	if (click.a && direntries[cursorpos].is_dir) 
+	{
 		char newdir[NAMEBUFSIZE];
 		//Don't double up the slash if we are moving out of root
 		if (strcmp(curdir, "/") != 0)
+		{
 			snprintf(newdir, NAMEBUFSIZE, "%s/%s", curdir, direntries[cursorpos].name);
+		}
 		else
+		{
 			snprintf(newdir, NAMEBUFSIZE, "/%s", direntries[cursorpos].name);
+		}
 		
-		if (!LoadDir(newdir)) {
+		if (!LoadDir(newdir)) 
+		{
 			//If we move into a new directory, reset the cursor and view position
 			cursorpos = 0;
 			viewtop = 0;
@@ -618,7 +744,8 @@ static void navigate_dir() {
 	}
 	
 	//Start a game
-	if (click.a && !direntries[cursorpos].is_dir) {
+	if (click.a && !direntries[cursorpos].is_dir) 
+	{
 		GLCurGame = NULL;
 		RunGame(direntries[cursorpos].name);
 		return;
@@ -635,13 +762,15 @@ static void navigate_dir() {
 	
 	pvr_list_finish();
 	pvr_scene_finish();
-	return;
 }
 
 int save_result;
-static void display_save_result() {
+static void display_save_result() 
+{
 	if (click.b || click.a || click.s)
+	{
 		loader_mode = browser_mode;
+	}
 	
 	pvr_set_bg_color(0,0,.1);
 	pvr_wait_ready();
@@ -649,26 +778,38 @@ static void display_save_result() {
 	pvr_list_begin(PVR_LIST_TR_POLY);
 	
 	if (save_result == -1)
+	{
 		puts_center(font, 240 - font->lineheight/2, "Not Saved");
+	}
 	else if (save_result == 0)
+	{
 		puts_center(font, 240 - font->lineheight/2, "Save Failed");
+	}
 	else if (save_result == 1)
+	{
 		puts_center(font, 240 - font->lineheight/2, "Save Completed");
+	}
 	else
+	{
 		puts_center(font, 240 - font->lineheight/2, "Unknown result");
+	}
 	
 	pvr_list_finish();
 	pvr_scene_finish();
 }
 
-static void update_save() {
-	if (Blocks_Required <= Destination_Free_Space) {
-		if (click.b) {
+static void update_save() 
+{
+	if (Blocks_Required <= Destination_Free_Space) 
+	{
+		if (click.b) 
+		{
 			Abort_Save_SRAM();
 			save_result = -1;
 			loader_mode = &display_save_result;
 		}
-		if (click.a) {
+		else if (click.a) 
+		{
 			pvr_set_bg_color(0,0,.1);
 			pvr_wait_ready();
 			pvr_scene_begin();
@@ -683,11 +824,16 @@ static void update_save() {
 			loader_mode = &display_save_result;
 			return;
 		}
-	} else {
-		if (click.a) {
+	} 
+	else 
+	{
+		if (click.a) 
+		{
 			Abort_Save_SRAM();
 			Prepare_Save_SRAM();
-		} else if (click.b) {
+		}
+		else if (click.b)
+		{
 			Abort_Save_SRAM();
 			loader_mode = browser_mode;
 		}
@@ -704,11 +850,16 @@ static void update_save() {
 	puts_center(font, 180+font->lineheight, FriendlySaveDest);
 	
 	if (Blocks_Required)
+	{
 		BMFprintf(font, 200, 300, 1, "Blocks Required: %i\nFree Space: %i", Blocks_Required, Destination_Free_Space);
+	}
 	
-	if (Blocks_Required <= Destination_Free_Space) {
+	if (Blocks_Required <= Destination_Free_Space)
+	{
 		puts_center(font, 400, "(A) Save   (B) Don't Save");
-	} else {
+	}
+	else
+	{
 		puts_center(font, 350, "Not enough space to save");
 		puts_center(font, 400, "(A) Retry   (B) Don't Save");
 	}
@@ -718,55 +869,73 @@ static void update_save() {
 	pvr_scene_finish();
 }
 
-static void go_to_filelist() {
+static void go_to_filelist()
+{
 	browser_mode = loader_mode = navigate_dir;
-	strcpy(curdir, "/");
+	
 	LoadDir(curdir);
 }
-static void go_to_gamelist() {
+
+static void go_to_gamelist() 
+{
 	printf("Using game list from: "GAMELISTFNAME"\n");
 	fflush(stdout);
 	FILE *f = fopen(GAMELISTFNAME, "r");
-	//~ perror("");
-	//~ printf("F: %p\n", f);
-	//~ fflush(stdout);
-	if (f) {
+	
+	if (f) 
+	{
 		fclose(f);
 		browser_mode = loader_mode = game_list;
-		//~ chdir(GAMELISTDIR);
 		LoadGameList(GAMELISTFNAME);
-	} else {
+	} 
+	else 
+	{
 		go_to_filelist();
 	}
 }
 
-static void exit_title_screen() {
-	if (GAMELISTLOADER) {
+static void exit_title_screen()
+{
+	if (GAMELISTLOADER) 
+	{
 		go_to_gamelist();
-	} else {
+	}
+	else
+	{
 		go_to_filelist();
 	}
 }
 
-static void title_screen() {
+static void title_screen()
+{
 	extern int DisableInterlace;
 	static float anim = 0;
 	int i;
 	
-	if (click.s) {
-		if (!hold.a && GAMELISTLOADER) {
+	if (click.s) 
+	{
+		if (!hold.a && GAMELISTLOADER) 
+		{
 			exit_title_screen();
-		} else {
+		} 
+		else 
+		{
 			go_to_filelist();
 		}
 		return;
 	}
+	
 	if (click.y && vid_check_cable() != CT_VGA)
+	{
 		DisableInterlace = !DisableInterlace;
+	}
 	
 	anim += 0.05;
+	
 	if (anim > (M_PI * 4))
+	{
 		anim -= M_PI * 4;
+	}
 	
 	pvr_set_bg_color(.1,.1,.1);
 	pvr_wait_ready();
@@ -776,8 +945,10 @@ static void title_screen() {
 	//Gens4All title
 	struct BMFSprite logo[8];
 	BMFprintfmem(titlefont, 320 - string_length_pixels(titlefont, "Gens4All") / 2, 140, 1, logo, "Gens4All");
-	for(i = 0; i < 8; i++) {
-		float s = sin(anim + (float)i/3) / 4 + 0.5;
+	
+	for(i = 0; i < 8; i++) 
+	{
+		float s = sin(anim + (float) i / 3) / 4 + 0.5;
 		pc_set_sprite_color(&logo[i].cxt, 1, s+.25, s+.25, s);
 	}
 	pvr_prim(logo, sizeof(logo));
@@ -790,9 +961,14 @@ static void title_screen() {
 	puts_center(font, 340, "Press Start");
 	
 	if (hold.a)
+	{
 		puts_center(font, 180+font->lineheight*2.5, "File Browser");
+	}
+	
 	if (DisableInterlace)
+	{
 		puts_center(font, 180+font->lineheight*3.5, "Interlace Off");
+	}
 	
 	//Background grid
 	int x,y, size = 40;
@@ -803,9 +979,13 @@ static void title_screen() {
 	pc_set_default_sprite(&rectcxt);
 	pc_set_sprite_color(&rectcxt, 1, 0.15, 0.15, 0.15);
 	pvr_prim(&rectcxt, sizeof(rectcxt));
-	for(x = 0; x < 640/size+3; x++) {
-		for(y = 0; y < 480/size+1; y++) {
-			if ((x^y) & 1) {
+	
+	for(x = 0; x < 640/size+3; x++) 
+	{
+		for(y = 0; y < 480/size+1; y++) 
+		{
+			if ((x^y) & 1) 
+			{
 				pv_setr_cmd_vertex_eos(rectv);
 				pv_setr_rect(rectv, x*size+offsetx, y*size+offsety, x*size+size+offsetx, y*size+size+offsety, 0.1);
 				pvr_prim(&rectv, sizeof(rectv));
@@ -817,22 +997,29 @@ static void title_screen() {
 	pvr_scene_finish();
 }
 
-void run_loader() {
+void run_loader() 
+{
 	init_loader_video();
 	
-	if (SKIPTITLE) {
+	if (SKIPTITLE) 
+	{
 		exit_title_screen();
-	} else {
+	} 
+	else 
+	{
 		loader_mode = title_screen;
 	}
-
-	do {
+	
+	do 
+	{
 		read_cont();
 		
 		loader_mode();
 		
 		watchdog_pet();
-	} while(1);
+	} 
+	while(1);
 	
 	exit(0);	
 }
+

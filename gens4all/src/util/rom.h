@@ -30,7 +30,6 @@ char Countries[4];
 } Rom;
 
 extern struct Rom *Game;
-extern struct Rom* Game;
 extern char Rom_Name[512];
 extern char Recent_Rom[9][1024];
 extern char IPS_Dir[1024];

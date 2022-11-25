@@ -26,7 +26,7 @@
 #ifndef SAVE_TO_PC
 //This should be set in the Makefile, but if it's not, default to PC save
 //Set to 1 to save to PC, set to 0 to save to VMU
-#define SAVE_TO_PC	1
+#define SAVE_TO_PC	0
 #endif
 
 extern void watchdog_pause();
@@ -187,9 +187,7 @@ FILE * Get_State_File ()
   return fopen (Name, "rb");
 }
 
-
-void
-Get_State_File_Name (char *name)
+void Get_State_File_Name (char *name)
 {
   char Ext[5] = ".gsX";
 
@@ -201,10 +199,7 @@ Get_State_File_Name (char *name)
   strcat (name, Ext);
 }
 
-
-
-int
-Load_State (char *Name)
+int Load_State (char *Name)
 {
 	//~ FILE *f;
 	int f;
@@ -268,9 +263,7 @@ Load_State (char *Name)
 	return 1;
 }
 
-
-int
-Save_State (char *Name)
+int Save_State (char *Name)
 {
 	if (Name == NULL)
 		return 0;
@@ -314,7 +307,9 @@ Save_State (char *Name)
 	fwrite (State_Buffer, 1, len, f);
 	fclose (f);
 	watchdog_resume();
-
+	
+	//printf("Save State write %s\n", Name);
+	
 	sprintf (Str_Tmp, "STATE %d SAVED", Current_State);
 	Put_Info (Str_Tmp, 2000);
 
@@ -562,9 +557,7 @@ void DCTimeConvert(unsigned long int seconds, vmu_timestamp_t *dst)
 	//~ tPrintf("%i-%i-%i %i:%02i:%02i (%08x)", currYear, month, date, hours, minutes, secondss, oseconds);
 }
 
-
-void
-Import_Genesis (unsigned char *Data)
+void Import_Genesis (unsigned char *Data)
 {
 //~ #if 0
   unsigned char Reg_1[0x200], Version, *src;
@@ -718,7 +711,6 @@ Import_Genesis (unsigned char *Data)
 
 //~ #endif
 }
-
 
 void Export_Genesis (unsigned char *Data)
 {
@@ -1155,8 +1147,7 @@ void Export_32X (unsigned char *Data)
 }
 #endif
 
-int
-Save_Config (char *File_Name)
+int Save_Config (char *File_Name)
 {
   char Conf_File[1024];
 
@@ -1562,10 +1553,7 @@ Save_Config (char *File_Name)
   return 1;
 }
 
-
-
-int
-Save_As_Config ()
+int Save_As_Config ()
 {
 /*
   char Name[2048];
@@ -1600,9 +1588,7 @@ Save_As_Config ()
   return 0;
 }
 
-
-int
-Load_Config (char *File_Name, void *Game_Active)
+int Load_Config (char *File_Name, void *Game_Active)
 {
   int new_val;
   char Conf_File[1024];
@@ -2019,9 +2005,8 @@ Load_As_Config (void *Game_Active)
   return 0;
 }
 
-
-static int GetSRAMSize(void) {
-	
+static int GetSRAMSize(void)
+{	
 	int i, size_to_save;
 	i = (64 * 1024) - 1;
 	while ((i >= 0) && (SRAM[i] == 0))
@@ -2051,9 +2036,12 @@ static int GetSRAMSize(void) {
 	2 if only odd bytes have data
 	3 if both even and odd bytes have data
 */
-static int GetSRAMColumns(int size) {
-	if (GLCurGame) {
-		switch(GLCurGame->SRAM) {
+static int GetSRAMColumns(int size) 
+{
+	if (GLCurGame) 
+	{
+		switch(GLCurGame->SRAM) 
+		{
 		case SAV_NONE: return 0;
 		case SAV_ODD_BYTES_SRAM: return 2;
 		case SAV_EVEN_BYTES_SRAM: return 1;
@@ -2079,25 +2067,31 @@ static int GetSRAMColumns(int size) {
 	return cols;
 }
 
-static void SRAMSqueeze(const unsigned char *src, unsigned char *dst, int size) {
+static void SRAMSqueeze(const unsigned char *src, unsigned char *dst, int size) 
+{
 	int i;
-	for(i = 0; i < size; i++) {
+	for(i = 0; i < size; i++) 
+	{
 		*dst++ = *src;
 		src += 2;
 	}
 }
 
-static void SRAMStretch(const unsigned char *src, unsigned char *dst, int size) {
+static void SRAMStretch(const unsigned char *src, unsigned char *dst, int size) 
+{
 	int i;
-	for(i = 0; i < size; i++) {
+	for(i = 0; i < size; i++) 
+	{
 		*dst = *src++;
 		dst += 2;
 	}
 }
 
-static int FileSizeBlocks(const char *name) {
+static int FileSizeBlocks(const char *name) 
+{
 	FILE *f = fopen(name, "rb");
-	if (f == NULL) {
+	if (f == NULL) 
+	{
 		return 0;
 	}
 	fseek(f, 0, SEEK_END);
@@ -2125,19 +2119,48 @@ int Blocks_Required;
 int Destination_Free_Space;
 static uint8_t *VMUData;
 static int VMUDataSize;
+extern int dev_mounted;
 
-
-static void GetSaveFileName(void) {
-	if (SAVE_TO_PC) {
+static void GetSaveFileName(void) 
+{
+	if (SAVE_TO_PC) 
+	{
 		strcpy (SaveName, "/pc/home/alex/Emu/Genesis/GENS4ALL_");
 		strcpy(FriendlySaveDest, "PC");
-	} else {
+	} 
+	else if (dev_mounted || ((*DCLOADMAGICADDR == DCLOADMAGICVALUE) && (dcload_type == DCLOAD_TYPE_IP))) 
+	{
+		char *RName = Game->Rom_Name;
+		Destination_Free_Space = 100;
+		
+		if (dev_mounted & 2)
+		{
+			sprintf(SaveName, "/hdd/gens4all/savestate/%s.sram", RName);
+			strcpy(FriendlySaveDest, "HDD");
+		}
+		else if (dev_mounted & 1)
+		{
+			sprintf(SaveName, "/sd/gens4all/savestate/%s.sram", RName);
+			strcpy(FriendlySaveDest, "SD");
+		}
+		else
+		{
+			sprintf(SaveName, "%s/savestate/%s.sram", ROM_PREFIX, RName);
+			strcpy(FriendlySaveDest, "PC");
+		}
+		return;
+	}
+	else 
+	{
 		maple_device_t *vmu = maple_enum_type(0, MAPLE_FUNC_MEMCARD);
-		if (vmu) {
+		if (vmu) 
+		{
 			sprintf(SaveName, "/vmu/%c%i/GENS4ALL_", 'a' + vmu->port, vmu->unit);
 			sprintf(FriendlySaveDest, "VMU %c%i", 'A' + vmu->port, vmu->unit);
 			Destination_Free_Space = vmufs_free_blocks(vmu);
-		} else {
+		} 
+		else 
+		{
 			strcpy(SaveName, "/ram/GENS4ALL_");
 			strcpy(FriendlySaveDest, "Temporary RAM");
 			Destination_Free_Space = 100;
@@ -2145,21 +2168,26 @@ static void GetSaveFileName(void) {
 	}
 	
 	//If using the loader and it has a save name, use that
-	if (GLCurGame && memcmp(GLCurGame->SaveExtension, "000", 3) != 0) {
+	if (GLCurGame && memcmp(GLCurGame->SaveExtension, "000", 3) != 0) 
+	{
 		int len = strlen(SaveName);
 		memcpy(SaveName + len, GLCurGame->SaveExtension, 3);
 		SaveName[len+4] = 0;
-	} else {
+	} 
+	else 
+	{
 		//Hash the ROM serial number for the end of the filename
 		unsigned int hash = 5381, i;
-		for(i = 0; i < sizeof(Game->Version); i++) {
+		for(i = 0; i < sizeof(Game->Version); i++) 
+		{
 			hash = (hash <<5) + hash + Game->Version[i];
 		}
 		hash ^= hash>>16;
 		
 		//Convert to letters
 		char mininame[4] = {0,0,0,0};
-		for(i = 0; i < 3; i++) { 
+		for(i = 0; i < 3; i++) 
+		{ 
 			mininame[i] = hash % 52;
 			hash /= 52;
 			
@@ -2170,14 +2198,16 @@ static void GetSaveFileName(void) {
 	}
 }
 
-int Has_SRAM_Changed(void) {
+int Has_SRAM_Changed(void) 
+{
 	if (GLCurGame && GLCurGame->SRAM == SAV_NONE)
 		return 0;
 	else
 		return memcmp(SRAM, OrigSRAM, 64*1024) != 0;
 }
 
-typedef struct {
+typedef struct 
+{
 	char version;
 	char type;
 	unsigned short size;
@@ -2243,12 +2273,6 @@ int Prepare_Save_SRAM (void)
 	Blocks_Required = 0;
 	Destination_Free_Space = 0;
 	
-	//~ maple_device_t *vmu = maple_enum_type(0, MAPLE_FUNC_MEMCARD);
-	//~ if (vmu == NULL)
-		//~ return 0;
-	
-	//~ printf("Got VMU at %c%i\n", 'a' + vmu->port, vmu->unit);
-	
 	int size_to_save = GetSRAMSize();
 	printf("***PREPARING SAVE SRAM***\n%s (%i byte SRAM)\n", SaveName, size_to_save);
 	
@@ -2259,19 +2283,27 @@ int Prepare_Save_SRAM (void)
 	//Squeeze SRAM and add header
 	int cols = GetSRAMColumns(size_to_save);
 	
-	if (cols == 0) {
+	if (cols == 0) 
+	{
 		return 0;	//Nothing to save
-	} else if (cols == 1) {
+	} 
+	else if (cols == 1) 
+	{
 		size_to_save /= 2;
 		SRAMSqueeze(SRAM, shead->data, size_to_save);
-	} else if (cols == 2) {
+	} 
+	else if (cols == 2) 
+	{
 		size_to_save /= 2;
 		SRAMSqueeze(SRAM+1, shead->data, size_to_save);
-	} else {
+	} 
+	else 
+	{
 		memcpy(shead->data, SRAM, size_to_save);
 	}
 	
-	if (GLCurGame && size_to_save < GL_CalcSRAMSize(GLCurGame->SRAMSize)) {
+	if (GLCurGame && size_to_save < GL_CalcSRAMSize(GLCurGame->SRAMSize)) 
+	{
 		size_to_save = GL_CalcSRAMSize(GLCurGame->SRAMSize);
 	}
 	
@@ -2286,17 +2318,21 @@ int Prepare_Save_SRAM (void)
 	//~ strncpy(vmupkg.app_id, SaveName, sizeof(vmupkg.app_id)-1);
 	strcpy(vmupkg.app_id, "Gens4All");
 	//~ strcpy(vmupkg.desc_long, "Gens4All");	//Game->Rom_Name_W
-	if (GLCurGame) {
+	if (GLCurGame) 
+	{
 		strncpy(vmupkg.desc_long, GetCurGameSaveTitle(), sizeof(vmupkg.desc_long)-1);
 		vmupkg.desc_long[sizeof(vmupkg.desc_long)-1] = 0;
 		strncpy(vmupkg.desc_short, GetCurGameSaveVMUTitle(), sizeof(vmupkg.desc_short)-1);
 		vmupkg.desc_short[sizeof(vmupkg.desc_short)-1] = 0;
-	} else {
+	} 
+	else 
+	{
 		strncpy(vmupkg.desc_long, Game->Rom_Name_W, sizeof(vmupkg.desc_long)-1);
 		vmupkg.desc_long[sizeof(vmupkg.desc_long)-1] = 0;
 		strncpy(vmupkg.desc_short, Game->Rom_Name_W, sizeof(vmupkg.desc_short)-1);
 		vmupkg.desc_short[sizeof(vmupkg.desc_short)-1] = 0;
 	}
+	
 	vmupkg.icon_cnt = 0;
 	vmupkg.icon_anim_speed = 0;
 	vmupkg.eyecatch_type = VMUPKG_EC_NONE;
@@ -2306,14 +2342,11 @@ int Prepare_Save_SRAM (void)
 	vmupkg.eyecatch_data = 0;
 	vmupkg.data = FileBuff;
 	
-	if (vmu_pkg_build(&vmupkg, &VMUData, &VMUDataSize)) {
+	if (vmu_pkg_build(&vmupkg, &VMUData, &VMUDataSize)) 
+	{
 		assert(0);
 	}
-	/*
-	vmu_timestamp_t replacetime;
-	DCTimeConvert(rtc_unix_secs(), &replacetime);
-	vmufs_file_write(
-	*/
+	
 	//Check for space required
 	Blocks_Required = (VMUDataSize + 511) / 512 - FileSizeBlocks(SaveName);
 	//If the SRAM zeroes out so it shrinks, don't shrink VMU file
@@ -2327,22 +2360,29 @@ int Prepare_Save_SRAM (void)
 	return 1;
 }
 
-void Abort_Save_SRAM(void) {
-	if (VMUData != NULL) {
+void Abort_Save_SRAM(void) 
+{
+	if (VMUData != NULL) 
+	{
 		free(VMUData);
 		VMUData = NULL;
 	}
 	VMUDataSize = 0;
 }
 
-int Commit_Save_SRAM(void) {
+int Commit_Save_SRAM(void) 
+{
 	if (VMUData == NULL)
 		return 0;
 	
 	FILE *SRAM_File = 0;
 	
-	if ((SRAM_File = fopen (SaveName, "wb")) == 0)
-		goto failure;
+	if ((SRAM_File = fopen (SaveName, "w+")) == 0)
+	{
+		printf("ERROR can't write %s\n", SaveName);
+		Abort_Save_SRAM();
+		return 0;
+	}
 
 	printf("***COMMIT SAVE SRAM***\n");
 	//~ fwrite (SRAM, size_to_save, 1, SRAM_File);
@@ -2358,20 +2398,18 @@ int Commit_Save_SRAM(void) {
 	Abort_Save_SRAM();
 	memcpy(OrigSRAM, SRAM, 64*1024);
 	return 1;
-failure:
-	Abort_Save_SRAM();
-	return 0;
 }
 
 int Save_SRAM (void)
 {
-	if (Has_SRAM_Changed() && Prepare_Save_SRAM()) {
+	if (Has_SRAM_Changed() && Prepare_Save_SRAM()) 
+	{
 		return Commit_Save_SRAM();
 	}
 	return 0;
 }
-int
-Save_SRAM_FS (void)
+
+int Save_SRAM_FS (void)
 {
 	FILE *SRAM_File = 0;
 	int size_to_save, i;
@@ -2408,8 +2446,7 @@ Save_SRAM_FS (void)
 	return 1;
 }
 
-void
-S_Format_BRAM (unsigned char *buf)
+void S_Format_BRAM (unsigned char *buf)
 {
   memset (buf, 0x5F, 11);
 
@@ -2489,3 +2526,4 @@ int Save_BRAM (void)
 	return 1;
 }
 #endif
+

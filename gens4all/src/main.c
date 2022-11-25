@@ -21,10 +21,36 @@
 
 #ifdef DREAMCAST
 #include <kos.h>
+#include <dc/sd.h>
+#include <kos/blockdev.h>
+#include <fat/fs_fat.h>
+
+kos_blockdev_t  sd_dev;
+kos_blockdev_t hdd_dev;
+
+int dev_mounted = 0;
+
 extern uint8 romdisk[];
 //~ KOS_INIT_FLAGS(INIT_DEFAULT | INIT_OCINDEX);
 KOS_INIT_FLAGS(INIT_DEFAULT);
 KOS_INIT_ROMDISK(romdisk);
+
+#define FAT16TYPE1 0x04  /* 32MB */
+#define FAT16TYPE2 0x06  /* Over 32 to 2GB */ 
+#define FAT32TYPE1 0x0B  /* FAT32 with CHS addressing */
+#define FAT32TYPE2 0x0C  /* FAT32 with LBA disk access */
+
+int fat_partition(uint8 partition_type)
+{
+	if(partition_type == FAT16TYPE1
+	|| partition_type == FAT16TYPE2
+	|| partition_type == FAT32TYPE1
+	|| partition_type == FAT32TYPE2 
+	)
+		return 1;
+		
+	return 0;
+}
 #endif
 
 #ifdef DEBUG_GENS4ALL
@@ -911,24 +937,30 @@ static void * watchdog(void *v) {
 		if (pfSampIsRunning())
 			pfSampRecordSample();
 		
-		if (!paused) {
+		if (!paused) 
+		{
 			sleeptime++;
-			if (sleeptime == 60) {
+			if (sleeptime == 60) 
+			{
 				printf("At PC: %08X, PR: %08X\n",(unsigned int)parentthd->context.pc,(unsigned int)parentthd->context.pr);
 				printf("Z80 Clock %i\n", raze_clock_counter);
-				int i;
-				for(i = 0; i < 16; i++) {
+				
+				for(int i = 0; i < 16; i++) 
+				{
 					printf("R%i: %08X  ", i, (unsigned int)parentthd->context.r[i]);
 					if ((i % 4) == 3)
 						printf("\n");
 				}
 				printf("\n");
 			}
-			if (sleeptime == 200) {
+			
+			if (sleeptime >= 200) 
+			{
 				printf("At PC: %08X, PR: %08X\n",(unsigned int)parentthd->context.pc,(unsigned int)parentthd->context.pr);
 				printf("Z80 Clock %i\n", raze_clock_counter);
-				int i;
-				for(i = 0; i < 16; i++) {
+				
+				for(int i = 0; i < 16; i++) 
+				{
 					printf("R%i: %08X  ", i, (unsigned int)parentthd->context.r[i]);
 					if ((i % 4) == 3)
 						printf("\n");
@@ -939,22 +971,28 @@ static void * watchdog(void *v) {
 			}
 		}
 	} while (1);
+	
+	return NULL;
 }
+
 void watchdog_pet()
 {
 	sleeptime = 0;
 	wdPet();
 }
+
 void watchdog_pause()
 {
 	paused = 1;
 	wdPause();
 }
+
 void watchdog_resume()
 {
 	paused = 0;
 	wdResume();
 }
+
 void watchdog_init()
 {
 	parentthd = thd_current;
@@ -994,6 +1032,68 @@ int main (int argc, char *argv[])
 	char *nargv[]={ "gens4all", ROM_PREFIX "example.bin.gz" };
     	puts("MAIN !!!!");
 	argv=nargv;
+	
+	uint8 partition_type;
+	
+	if(!sd_init())
+	{
+		partition_type = 0;
+		
+		if(!sd_blockdev_for_partition(0, &sd_dev, &partition_type))
+		{
+			if(fat_partition(partition_type))
+			{
+				fs_fat_init();
+				
+				if(!fs_fat_mount("/sd", &sd_dev, FS_FAT_MOUNT_READWRITE))
+				{
+					dev_mounted |= 1;
+				}
+			}
+		}
+	}
+	
+	if(!g1_ata_init())
+	{
+		partition_type = 0;
+		
+		if(!g1_ata_blockdev_for_partition(0, 0, &hdd_dev, &partition_type))
+		{
+			if(fat_partition(partition_type))
+			{
+				fs_fat_init();
+				
+				if(!fs_fat_mount("/hdd", &hdd_dev, FS_FAT_MOUNT_READWRITE))
+				{
+					dev_mounted |= 2;
+				}
+			}
+		}
+	}
+	
+	if (dev_mounted || ((*DCLOADMAGICADDR == DCLOADMAGICVALUE) && (dcload_type == DCLOAD_TYPE_IP)))
+	{
+		extern void Enable_SaveState();
+		Enable_SaveState();
+		extern char *current_game_dir;
+		extern char *Patch_Dir;
+		
+		if (dev_mounted & 2)
+		{
+			strcpy(current_game_dir, "/hdd");
+			strcpy(Patch_Dir, "/hdd/gens4all/patch/");
+		}
+		else if (dev_mounted & 1)
+		{
+			strcpy(current_game_dir, "/sd");
+			strcpy(Patch_Dir, "/sd/gens4all/patch/");
+		}
+		else
+		{
+			sprintf(current_game_dir, "%s/game", ROM_PREFIX);
+			sprintf(Patch_Dir, "%s/patch/", ROM_PREFIX);
+		}
+	}
 #else
 	if (argc < 2)
 	{
@@ -1004,11 +1104,7 @@ int main (int argc, char *argv[])
 #endif
 
 	dbg("Init genesis bios");
-	Rom_Data=(unsigned char *)calloc(6 ,1024 * 1024);
-//	memset((void *)VRam,0,sizeof(VRam));
-//	memset((void *)CRam,0,sizeof(CRam));
-//	memset((void *)VSRam_Over,0,sizeof(VSRam_Over));
-//	memset((void *)H_Counter_Table,0,sizeof(H_Counter_Table));
+	Rom_Data = (unsigned char *) calloc(8 ,1024 * 1024);
 	Init_Genesis_Bios ();
 
 #ifdef PROFILER_GENS4ALL
@@ -1022,18 +1118,17 @@ int main (int argc, char *argv[])
 	prof_add("SRender");        // PROF_SRENDER
 	prof_add("MainLoop");       // PROF_MAINLOOP
 	prof_add("PVRWait");        // PROF_PVRWAIT
-	prof_add("PROF_MAPA");             // PROF_R2
-	prof_add("PROF_MAPB");             // PROF_R3
-	prof_add("PROF_SPR");             // PROF_R4
-	prof_add("PROF_TEX");             // PROF_R5
+	prof_add("PROF_MAPA");      // PROF_R2
+	prof_add("PROF_MAPB");      // PROF_R3
+	prof_add("PROF_SPR");       // PROF_R4
+	prof_add("PROF_TEX");       // PROF_R5
 	prof_add("R6");             // PROF_R6
 	prof_add("R7");             // PROF_R7
 #endif
-
 	
 	if (!Init ())
 		return 0;
-
+	
 #if !defined(DREAMCAST) && !defined(DEBUG_VDP)
 	setWindowIcon(DATA_PREFIX "gens_ico.bmp");
 #endif
@@ -1044,55 +1139,32 @@ int main (int argc, char *argv[])
 	sync_gens_ui ();
 	Set_Frame_Skip (-1);
 
-/*
-	dbg("Get rom");
-	if (Get_Rom(argv[1]) == -1)
-	{
-		fprintf(stderr,"Error loading ROM file\n");
-		return 1;
-	}
-*/
-
 	clear_SDL_events();
-	dbg("Main loop");
-	//menu_init(surface,&menu,"data/");
-	//menu_run();
-	
-	//~ Sound_Rate = 44100;
-	//~ Sound_Rate = 32000;
-	//~ Sound_Rate = 16000;
-	//~ Sound_Rate = 11025;
-	//~ Sound_Rate = 8000;
-	//~ YM2612_Improv = 1;
 	Sound_Enable = 1;
-	//~ DAC_Enable = 1;
 	Z80_State = 1;
-	//~ printf("Using list   : %i\n", PVRVDP_TARGET_LIST);
 	printf("Sound Rate   : %i\n", Sound_Rate);
 	printf("Sound Enabled: %i\n", Sound_Enable);
 	printf("DAC Enabled  : %i\n", DAC_Enable);
 	printf("Z80 State    : %i\n", Z80_State);
 	fflush(stdout);
 	
-	//irq_set_handler(EXC_USER_BREAK_PRE, &break_handler);
-	//ubc_break_data_write(((uint32)&pvr_state.recording)+0);
-	//ubc_break_data_write((uint32)&Gens_Running);
-	
-	
 	watchdog_init();
 	wdInit();
+	
 	watchdog_pause();
 	wdPause();
 	pfSampInit(10000);
+	
 	printf("CCR: %08x\n", *(int*)0xFF00001c);
 	printf("RD: %i\n", sizeof(RasterData));
 	fflush(stdout);
-	//~ while(1);
+	
 #if !SKIPLOADER
 	extern void run_loader();
 	run_loader();
+	
 	return 0;
-#endif
+#else
 	
 	maple_device_t *contr = maple_enum_type(0, MAPLE_FUNC_CONTROLLER);
 	cont_state_t *cond = (cont_state_t *)maple_dev_status(contr);
@@ -1139,6 +1211,7 @@ int main (int argc, char *argv[])
 	fflush(stdout);
 	//End_All ();
 	return 0;
+#endif
 }
 
 struct BMFFont * emufont;
@@ -1147,6 +1220,7 @@ int run(const char *rom_filename)
 {
 	printf("Running rom: %s\n", rom_filename);
 	fflush(stdout);
+	
 	if (Get_Rom((char *)rom_filename) == -1)
 		return -1;
 	
@@ -1162,7 +1236,8 @@ int run(const char *rom_filename)
 	Force_Screen_On_Hack = 0;
 	Render_Point = 0;
 	
-	if (GLCurGame) {
+	if (GLCurGame) 
+	{
 		printf("%08x\n", GLCurGame->Hacks);
 		if (GLCurGame->Hacks & (1<<GH_SONIC_Z80_HACK))
 			Sonic_SMPS_Z80_Hack = 1;
@@ -1172,25 +1247,44 @@ int run(const char *rom_filename)
 			Render_Point = 2;
 		if (GLCurGame->Hacks & (1<<GH_SONIC2_AUTO_RENDER_HACK))
 			Sonic_2_Auto_Render = 1;
-	} else {
-		if (strcmp(Game->Rom_Name, "SONIC THE HEDGEHOG 2 ") == 0) {
+	} 
+	else 
+	{
+		if (strcmp(Game->Rom_Name, "SONIC THE HEDGEHOG 2") == 0) 
+		{
 			Sonic_SMPS_Z80_Hack = 1;
 			Sonic_2_Auto_Render = 1;
-		} else if (strcmp(Game->Rom_Name, "SONIC THE HEDGEHOG 3 ") == 0) {
+		} 
+		else if (strcmp(Game->Rom_Name, "SONIC THE HEDGEHOG 3") == 0) 
+		{
 			Sonic_SMPS_Z80_Hack = 1;
-		} else if (strcmp(Game->Rom_Name, "SONIC & KNUCKLES ") == 0) {
+		} 
+		else if (strcmp(Game->Rom_Name, "SONIC & KNUCKLES") == 0) 
+		{
 			Sonic_SMPS_Z80_Hack = 1;
-		} else if (strcmp(Game->Rom_Name, "- RISTAR - ") == 0) {
+		} 
+		else if (strcmp(Game->Rom_Name, "- RISTAR -") == 0) 
+		{
 			Ristar_Hack = 1;
-		} else if (strcmp(Game->Rom_Name, "- RISTAR THE SHOOTING STAR - ") == 0) {
+		} 
+		else if (strcmp(Game->Rom_Name, "- RISTAR THE SHOOTING STAR -") == 0) 
+		{
 			Ristar_Hack = 1;
-		} else if (strcmp(Game->Rom_Name_W, "SONIC 3D FLICKIES' ISLAND ") == 0) {
+		} 
+		else if (strcmp(Game->Rom_Name_W, "SONIC 3D FLICKIES' ISLAND") == 0) 
+		{
 			Sonic_SMPS_Z80_Hack = 1;
-		} else if (strcmp(Game->Rom_Name_W, "GUNSTAR HEROES ") == 0) {
+		} 
+		else if (strcmp(Game->Rom_Name_W, "GUNSTAR HEROES") == 0) 
+		{
 			
-		} else if (strcmp(Game->Rom_Name_W, "Landstalker ") == 0) {
+		} 
+		else if (strcmp(Game->Rom_Name_W, "Landstalker") == 0) 
+		{
 			Render_Point = 2;
-		} else if (strcmp(Game->Rom_Name_W, "Land Stalker ") == 0) {
+		} 
+		else if (strcmp(Game->Rom_Name_W, "Land Stalker") == 0) 
+		{
 			Render_Point = 2;
 		}
 	}
@@ -1210,21 +1304,22 @@ int run(const char *rom_filename)
 		//PROFILE START HERE
 		prof_frame_start();
 		
-		
-	      if (update_SDL_events () == -1)
-		      return 0;
-
-	#ifdef GENS_DEBUG
-	      if (Debug)		// DEBUG
+		if (update_SDL_events () == -1)
 		{
-		  Update_Debug_Screen ();
-		  Flip ();
+			return 0;
 		}
-	      else
-	#endif
-	      if (Genesis_Started || _32X_Started || SegaCD_Started)
+
+#ifdef GENS_DEBUG
+		if (Debug)		// DEBUG
 		{
-		  if ((Active) && (!Paused))	// EMULATION
+			Update_Debug_Screen ();
+			Flip ();
+		}
+		else
+#endif
+		if (Genesis_Started || _32X_Started || SegaCD_Started)
+		{
+			if ((Active) && (!Paused))	// EMULATION
 		    {
 			    //~ spu_master_mixer(9, 1);
 				if (fast_forward == 1)
@@ -1236,39 +1331,39 @@ int run(const char *rom_filename)
 					Update_Emulation ();
 				}
 		    }
-		  else			// EMULATION PAUSED
+			else			// EMULATION PAUSED
 		    {
 			    Update_Controllers();
-		      Flip ();
+				Flip ();
 		      //~ Sleep (100);
 		    }
 		}
-	      else if (GYM_Playing)	// PLAY GYM
+		else if (GYM_Playing)	// PLAY GYM
 		{
-		  Play_GYM ();
-		  Update_Gens_Logo ();
+			Play_GYM ();
+			Update_Gens_Logo ();
 		}
-	      else if (Intro_Style == 1)	// GENS LOGO EFFECT
+		else if (Intro_Style == 1)	// GENS LOGO EFFECT
 		{
-		  Update_Gens_Logo ();
-		  Sleep (5);
+			Update_Gens_Logo ();
+			Sleep (5);
 		}
-	      else if (Intro_Style == 2)	// STRANGE EFFECT
+		else if (Intro_Style == 2)	// STRANGE EFFECT
 		{
-		  Update_Crazy_Effect ();
-		  Sleep (10);
+			Update_Crazy_Effect ();
+			Sleep (10);
 		}
-	      else if (Intro_Style == 3)	// GENESIS BIOS
+		else if (Intro_Style == 3)	// GENESIS BIOS
 		{
-		  Do_Genesis_Frame ();
-		  Flip ();
-		  Sleep (20);
+			Do_Genesis_Frame ();
+			Flip ();
+			Sleep (20);
 		}
-	      else			// BLANK SCREEN (MAX IDLE)
+		else			// BLANK SCREEN (MAX IDLE)
 		{
-		  //Clear_Back_Screen();
-		  Flip ();
-		  Sleep (200);
+			//Clear_Back_Screen();
+			Flip ();
+			Sleep (200);
 		}
 		
 		prof_frame_end();
@@ -1282,3 +1377,4 @@ int run(const char *rom_filename)
 	
 	return 0;
 }
+
