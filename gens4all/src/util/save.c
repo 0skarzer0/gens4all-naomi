@@ -2206,7 +2206,7 @@ int Load_SRAM (void)
 	fclose (SRAM_File);
 	
 	vmu_pkg_t vmupkg;
-	if (vmu_pkg_parse(FileBuff, &vmupkg)) {
+	if (vmu_pkg_parse(FileBuff, sizeof(FileBuff), &vmupkg)) {	/* KOS nueva: pide el tamaño */
 		//CRC error
 		return 0;
 	}

@@ -894,7 +894,7 @@ void break_handler(irq_t source, irq_context_t *context) {
 	int breakpc = CONTEXT_PC(*context);
 	printf("***************Break at %08x***************\n", breakpc);
 	fflush(stdout);
-	ubc_disable_all();
+	ubc_clear_breakpoints();	/* KOS nueva: ubc_disable_all() ya no existe */
 }
 
 static volatile int sleeptime = 0;
