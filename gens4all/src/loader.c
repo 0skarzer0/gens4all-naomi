@@ -527,8 +527,10 @@ static void game_list() {
 		
 	if (click.x)
 		loader_mode = &GameListIndex;
+#ifndef NAOMI_HOST	// gens4all-naomi: on the NAOMI exit() reboots the board; START does nothing here
 	if (click.s)
 		exit(0);
+#endif
 	
 	UpdateListCursor(gl->game_cnt);
 	
@@ -577,8 +579,10 @@ static void navigate_dir() {
 	
 	dirmarkwidth = BMFStringWidth(font, AsciiReader, "[D]", 3);
 	
+#ifndef NAOMI_HOST	// gens4all-naomi: on the NAOMI exit() reboots the board; START does nothing here
 	if (click.s)
 		exit(0);
+#endif
 	
 	UpdateListCursor(direntrycnt);
 	
