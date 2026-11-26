@@ -32,6 +32,17 @@ Escrito el 2026-11-26 tras leer el código de la 4.3 de TapamN (`gens4all/`). Re
 - **Compilador**: TapamN usó GCC 9.3 y KOS v2.0.0-489 (sept. 2021). Nosotros, GCC 13-15 y KOS 680d1862: esperar avisos
   convertidos en errores y ensamblador que el `as` nuevo rechace.
 
+## Trampas encontradas (2026-11-26)
+
+- **Sin planos de fondo, solo sprites** (en placa y en Flycast): la KallistiOS 2.2 compila por defecto con
+  `-m4-single`, donde GCC pasa los `float` cruzados (`fr5`, `fr4`…), y el ensamblador de TapamN
+  (`src/pvrvdp/drawrow.S`…) los lee en orden (`fr4` = x, `fr5` = y), como en `-m4-single-only`, la de 2021. Todo se
+  compila con `KOS_SH4_PRECISION=-m4-single-only` (KallistiOS, kos-ports, SDL[DH], Gens4All): `build_gens4all.sh`.
+- GCC 15: C17 y algunos avisos como avisos (`Makefile.dc`); `-fno-strict-aliasing`, que la KallistiOS quitó.
+- `bmf.c` necesita las cabeceras de libpng (kos-ports).
+- El binario original de TapamN no arranca en la NAOMI (se reinicia): hay que recompilar.
+- Comparar con Dreamcast: Flycast con `-config config:UseReios=yes` y el CDI de Gens4Dreams.
+
 ## Pasos (cada uno se prueba en Flycast, modo NAOMI, antes de la placa)
 
 1. **Compilar para Dreamcast tal cual** con nuestra KOS sin parche: arreglar lo que no compile con GCC/KOS nuevos.

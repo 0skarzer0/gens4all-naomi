@@ -5,7 +5,8 @@
 [dc2naomi](https://github.com/0skarzer0/dc2naomi): el emulador se compila contra una KallistiOS parcheada para NAOMI
 (`NAOMI_HOST`) y dc2naomi lo empaqueta, con las ROMs y la lista de juegos, como imagen de NAOMI.
 
-**Estado:** solo el código de TapamN importado y el plan ([docs/plan.md](docs/plan.md)). Todavía no compila para NAOMI.
+**Estado:** compila para NAOMI (`build_gens4all.sh`) y funciona en la placa (NAOMI 2, mueble del Crazy Taxi): lista de
+juegos, sonido y mandos probados; los fondos, arreglados después y aún sin reprobar en placa. Ver [docs/plan.md](docs/plan.md).
 
 ## Qué hay aquí
 
