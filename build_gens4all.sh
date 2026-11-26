@@ -46,7 +46,11 @@ mkdir -p "$WORK"
 
 # 1. KallistiOS + NAOMI_HOST, own tree; zlib from kos-ports
 KOS=$WORK/kos
-if [ ! -f "$KOS/lib/dreamcast/libkallisti.a" ] || ! git -C "$KOS" apply -R --check "$PATCH" 2>/dev/null; then
+# TapamN's SH-4 assembly (src/pvrvdp/*.S) takes its float arguments in fr4, fr5... in order: the m4-single-only
+# ABI of the KallistiOS of 2021. KallistiOS 2.2 defaults to m4-single, where GCC passes them swapped (fr5, fr4...)
+# and the tile rows land off screen (sprites only, no background planes). So the whole build is m4-single-only.
+if [ ! -f "$KOS/lib/dreamcast/libkallisti.a" ] || ! git -C "$KOS" apply -R --check "$PATCH" 2>/dev/null ||
+   ! grep -q '^export KOS_SH4_PRECISION="-m4-single-only"' "$KOS/environ.sh"; then
     say "KallistiOS $KOS_REV + NAOMI_HOST"
     [ -d "$KOS/.git" ] || git clone -q "$KOS_URL" "$KOS"
     git -C "$KOS" checkout -q -f "$KOS_REV"
@@ -55,12 +59,17 @@ if [ ! -f "$KOS/lib/dreamcast/libkallisti.a" ] || ! git -C "$KOS" apply -R --che
         "$KOS/doc/environ.sh.sample" > "$KOS/environ.sh"
     sed -i 's#^export KOS_CFLAGS="${KOS_CFLAGS} -O2"#export KOS_CFLAGS="${KOS_CFLAGS} -DNAOMI_HOST"\n&#' "$KOS/environ.sh"
     grep -q NAOMI_HOST "$KOS/environ.sh"
+    sed -i 's#^export KOS_SH4_PRECISION=.*#export KOS_SH4_PRECISION="-m4-single-only"#' "$KOS/environ.sh"
+    grep -q '^export KOS_SH4_PRECISION="-m4-single-only"' "$KOS/environ.sh"
+    (cd "$KOS" && git clean -qfdX kernel lib addons utils >/dev/null 2>&1 || true)
     rm -f "$KOS/lib/dreamcast/libkallisti.a"
     (source "$KOS/environ.sh" && cd "$KOS" && make -j"$JOBS")
 fi
 source "$KOS/environ.sh" >/dev/null 2>&1
 [ -d "$WORK/kos-ports/.git" ] || git clone -q "$PORTS_URL" "$WORK/kos-ports"
 git -C "$WORK/kos-ports" checkout -q "$PORTS_REV"
+PORTS_TAG=$KOS_PORTS/.gens4all-m4-single-only   # ports built for another ABI are rebuilt
+[ -f "$PORTS_TAG" ] || rm -f "$KOS_PORTS/lib/libz.a" "$KOS_PORTS/lib/libpng.a"
 if [ ! -f "$KOS_PORTS/lib/libz.a" ]; then
     # zlib.net keeps only the latest zlib: 1.3.2 from its GitHub releases (kos-ports checks size and SHA-256)
     Z=$WORK/kos-ports/zlib/dist/zlib-1.3.2.tar.gz
@@ -68,6 +77,9 @@ if [ ! -f "$KOS_PORTS/lib/libz.a" ]; then
         { mkdir -p "$(dirname "$Z")"; curl -sfL -o "$Z" https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz; }
     say "kos-ports: zlib"; (cd "$KOS_PORTS/zlib" && make install clean)
 fi
+# bmf.c includes <png/png.h> (headers only: nothing of libpng is linked)
+[ -f "$KOS_PORTS/lib/libpng.a" ] || { say "kos-ports: libpng"; (cd "$KOS_PORTS/libpng" && make install clean); }
+touch "$PORTS_TAG"
 
 # GCC 13-15 make errors of what GCC 9.3 only warned about (as in gens4all/Makefile.dc)
 OLDC="-std=gnu17 -Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=incompatible-pointer-types
@@ -83,6 +95,7 @@ mkdir -p "$KOS_BASE/addons/include/SDL"; cp "$WORK"/sdldh/include/*.h "$KOS_BASE
 # 3. Gens4All (fresh copy every time; libsh4/ is found through -Isrc/cpu/m68k + "../../../libsh4")
 say "Gens4All"
 SRC=$WORK/gens4all; rm -rf "$SRC"; cp -r "$HERE/gens4all" "$SRC"
+find "$SRC" \( -name "*.o" -o -name "*.elf" -o -name gens4all.bin -o -name romdisk.img \) -delete   # never reuse old objects
 make -C "$SRC" -f Makefile.dc -j"$JOBS" > "$WORK/gens4all.log" 2>&1 || { tail -30 "$WORK/gens4all.log"; exit 1; }
 [ -f "$SRC/gens4all.bin" ]
 

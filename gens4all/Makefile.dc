@@ -35,6 +35,8 @@ KOS_CFLAGS+= -DVDP_STRETCH_256=0
 # gens4all-naomi: GCC 13-15 convierte en errores cosas que GCC 9.3 (el de TapamN) solo avisaba. C17 y
 # esos avisos como avisos, sin tocar el código de TapamN.
 KOS_CFLAGS+= -std=gnu17 -Wno-error=implicit-function-declaration -Wno-error=implicit-int 	-Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=return-mismatch
+# KallistiOS quitó -fno-strict-aliasing de KOS_CFLAGS (commit 7c1c0eab); el código de TapamN se escribió con él.
+KOS_CFLAGS+= -fno-strict-aliasing
 
 KOS_CPPFLAGS = $(KOS_CFLAGS)
 
