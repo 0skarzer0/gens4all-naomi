@@ -5,8 +5,9 @@
 # repository against KallistiOS 680d1862 + dc2naomi's NAOMI_HOST patch, and packed by dc2naomi as a NAOMI image.
 #
 #   DISC_SRC  either a folder laid out like the Gens4Dreams disc (gamelist.bin at the top and the ROMs where it
-#             says), or a folder of ROMs (.bin/.gen/.md/.smd): then glc (gens4all/src/glparse) writes a game list
-#             from their headers. Its 1ST_READ.BIN and IP.BIN, if any, are NOT used.
+#             says: used as it is), or a folder of ROMs (.md/.bin/.gen/.smd) with optional sub-folders: then
+#             tools/mklists.py makes one game list per folder, linked to each other, with titles from the file
+#             names (MAIN_TITLE / LINK_TITLE name the links). Its 1ST_READ.BIN and IP.BIN, if any, are NOT used.
 #   OUT.bin   default build/gens4all_dc2naomi.bin (+ .gz)
 #
 # What it does:
@@ -18,7 +19,8 @@
 # Needs: sh-elf GCC 13-15 in /opt/toolchains/dc/sh-elf, a dc2naomi clone with the gens4all profiles (D2N, default
 # ../dc2naomi), KOS_NAOMI_ENV (environ.sh of a KOS_SUBARCH=naomi tree, for dc2naomi's loader), git, curl, m4, cc,
 # python3, genisoimage. Use a clone with LF line ends (WSL, not the Windows one).
-# Environment: WORK (default $HOME/g4a-build), D2N, KOS_NAOMI_ENV (default /opt/toolchains/dc/kos/environ.sh),
+# Environment: WORK (default $HOME/g4a-build), D2N, MAIN_TITLE, LINK_TITLE,
+#              KOS_NAOMI_ENV (default /opt/toolchains/dc/kos/environ.sh),
 #              JOBS (4), PROFILE (gens4all, or gens4all_dbg: KallistiOS log and diagnostics on screen).
 set -eo pipefail   # (not -u: KallistiOS's environ.sh reads unset variables)
 SRCD=$(realpath "${1:?usage: build_gens4all.sh DISC_SRC [OUT.bin]}")
@@ -86,13 +88,13 @@ make -C "$SRC" -f Makefile.dc -j"$JOBS" > "$WORK/gens4all.log" 2>&1 || { tail -3
 
 # 4. disc and dc2naomi
 DISC=$WORK/disc; rm -rf "$DISC"; mkdir -p "$DISC"
-(cd "$SRCD" && find . -mindepth 1 -maxdepth 1 ! -iname 1ST_READ.BIN ! -iname IP.BIN -exec cp -r {} "$DISC/" \;)
-if [ ! -f "$DISC/gamelist.bin" ]; then
-    say "glc: game list from the ROMs' headers"
-    make -C "$SRC/src/glparse" >/dev/null
-    (cd "$DISC" && shopt -s nullglob nocaseglob && R=( *.bin *.gen *.md *.smd ) && [ ${#R[@]} -gt 0 ] &&
-        "$SRC/src/glparse/glc" -g list.txt "${R[@]}" && "$SRC/src/glparse/glc" -c list.txt && rm list.txt)
-    [ -f "$DISC/gamelist.bin" ] || { echo "no ROMs (.bin/.gen/.md/.smd) at the top of $SRCD" >&2; exit 1; }
+make -C "$SRC/src/glparse" >/dev/null
+if [ -f "$SRCD/gamelist.bin" ]; then
+    (cd "$SRCD" && find . -mindepth 1 -maxdepth 1 ! -iname 1ST_READ.BIN ! -iname IP.BIN -exec cp -r {} "$DISC/" \;)
+else
+    say "game lists (tools/mklists.py)"
+    python3 -I "$HERE/tools/mklists.py" "$SRC/src/glparse/glc" "$SRCD" "$DISC" \
+        --main-title "${MAIN_TITLE:-[[ Main list ]]}" --link-title "${LINK_TITLE:-[[ %s ]]}"
 fi
 cp "$SRC/gens4all.bin" "$DISC/1ST_READ.BIN"
 printf '%s\n' "Device Info   : CD-ROM1/1" "Area Symbols  : JUE" "Peripherals   : E000F10" "Product No    : T0000" \
